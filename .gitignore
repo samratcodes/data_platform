@@ -15,10 +15,15 @@
 
 # next.js
 /.next/
+/.next-build/
 /out/
 
 # production
 /build
+/.data/
+/test-results/
+/playwright-report/
+/public/vendor/
 
 # misc
 .DS_Store
