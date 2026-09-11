@@ -2,9 +2,21 @@
   "name": "data_platform",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "postinstall": "node scripts/sync-map-assets.mjs",
+    "db:migrate": "node scripts/migrate-database.mjs",
+    "db:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/seed-database.mjs",
+    "db:reset-ui": "node scripts/reset-ui-data.mjs",
+    "db:check": "node scripts/check-database.mjs",
+    "db:maintain": "node scripts/maintain-database.mjs",
+    "emails:check": "node scripts/check-resend.mjs",
+    "emails:send": "node scripts/send-email-outbox.mjs",
+    "integrations:sync": "node scripts/sync-google-sheets.mjs",
+    "integrations:watch": "node scripts/sync-google-sheets.mjs --watch",
+    "admin:grant": "node scripts/grant-admin.mjs",
     "test:e2e": "playwright test",
     "dev": "next dev",
     "build": "next build",
@@ -12,15 +24,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@types/pg": "^8.23.1",
     "framer-motion": "^13.2.0",
+    "google-auth-library": "^11.0.2",
+    "google-spreadsheet": "^5.3.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.41.0",
     "mapbox-gl": "^3.30.0",
     "maplibre-gl": "^6.8.0",
     "next": "16.3.4",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-leaflet": "^5.0.0"
+    "react-leaflet": "^5.0.0",
+    "resend": "^6.27.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

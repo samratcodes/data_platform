@@ -3,9 +3,9 @@ import "./globals.css";
 import "./explorer.css";
 
 export const metadata: Metadata = {
-  title: "FileMarket | Global Data Network",
+  title: { default: "map.filemarket | Verified AI Data Network", template: "%s | map.filemarket" },
   description:
-    "Explore FileMarket's demo network of data hubs, facilities, and available data streams around the world.",
+    "Discover verified data companies, robotics operators, and physical collection facilities through a transparent global sourcing map.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -17,7 +17,7 @@ interface FloatingSearchProps {
   onClear: () => void;
 }
 
-const organizationTypes: OrganizationType[] = ["Facility", "Data Company"];
+const organizationTypes: OrganizationType[] = ["Facility", "Data Company", "Robotics"];
 const modalities: DataModality[] = [
   "Egocentric video",
   "Exocentric video",
@@ -68,6 +68,7 @@ export default function FloatingSearch({
           <input
             id="network-search"
             type="search"
+            maxLength={160}
             value={query}
             onFocus={onOpen}
             onClick={onOpen}

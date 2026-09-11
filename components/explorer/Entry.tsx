@@ -1,9 +1,10 @@
 import { getUser } from "@/lib/auth";
-import { nodes } from "../Landing/nodes";
+import { verifiedOperators } from "@/lib/operators";
 import ExplorerApp from "./ExplorerApp";
 
-export default async function Entry({ dashboard = false }: { dashboard?: boolean }) {
+export default async function Entry() {
   const user = await getUser();
-  const operators = nodes.map(({ id, slug, name, city, country, coordinates, type, modalities, capacity, media }) => ({ id, slug, name, city, country, coordinates, type, modalities, capacity, media }));
-  return <ExplorerApp initialUser={user} operators={operators} initialDashboard={dashboard}/>;
+  const source = await verifiedOperators({ includeDemo: !user });
+  const operators = source.map(({ id, slug, name, city, country, coordinates, type, verificationLevel, modalities, profile, media }) => ({ id, slug, name, city, country, coordinates, type, verificationLevel, modalities, profile, media }));
+  return <ExplorerApp initialUser={user} operators={operators}/>;
 }

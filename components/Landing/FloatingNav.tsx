@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Globe2, LogIn, Menu } from "lucide-react";
+import { LogIn, Menu } from "lucide-react";
 
 export default function FloatingNav() {
   return (
@@ -10,13 +11,13 @@ export default function FloatingNav() {
       >
         <Link
           href="/"
-          aria-label="FileMarket home"
+          aria-label="map.filemarket home"
           className="flex items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-bold tracking-tight text-white transition-colors hover:bg-white/10"
         >
-          <span className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-emerald-400 via-teal-400 to-blue-500 text-white shadow-lg shadow-cyan-500/25">
-            <Globe2 size={17} aria-hidden="true" />
+          <span className="grid size-8 place-items-center overflow-hidden rounded-lg bg-white shadow-lg shadow-cyan-500/25">
+            <Image src="/brand-logo.png" alt="" width={32} height={32} priority/>
           </span>
-          <span>FileMarket</span>
+          <span>map.filemarket</span>
         </Link>
         <div className="hidden items-center gap-2 sm:flex">
           <Link

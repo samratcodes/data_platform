@@ -21,7 +21,7 @@ import CityOperatorsPanel from "./CityOperatorsPanel";
 import FloatingNav from "./FloatingNav";
 import FloatingSearch from "./FloatingSearch";
 import MapMediaPreview from "./MapMediaPreview";
-import { cities, countries as catalogueCountries, nodes } from "./nodes";
+import { cities, countries as catalogueCountries, nodes } from "./realNodes";
 import type {
   CityData,
   DataModality,
@@ -137,15 +137,7 @@ export default function NetworkExplorer() {
       ),
     [visibleOperators],
   );
-  const panelOperators = useMemo(
-    () =>
-      [...visibleOperators].sort((first, second) => {
-        if (first.type !== second.type)
-          return first.type === "Data Company" ? -1 : 1;
-        return first.name.localeCompare(second.name);
-      }),
-    [visibleOperators],
-  );
+  const panelOperators = visibleOperators;
   const totalFacilities = visibleOperators.filter(
     (operator) => operator.type === "Facility",
   ).length;

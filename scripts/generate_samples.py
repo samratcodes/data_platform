@@ -46,7 +46,7 @@ for scene in ("robotics", "perception"):
                 draw.rectangle((x,y,x+70,y+125),outline="#5d90eb",width=2)
                 draw.text((x,y-15), f"OBJECT {i+1}  0.97",fill="#92b5ff")
         draw.rectangle((30,30,930,510),outline="#315664")
-        draw.text((50,48), "FILEMARKET / SYNTHETIC DEMONSTRATION", fill="#81a8b9")
+        draw.text((50,48), "map.filemarket / SYNTHETIC DEMONSTRATION", fill="#81a8b9")
         draw.ellipse((50,480,57,487),fill="#28cda6")
         draw.text((68,478), f"{scene.upper()}    FRAME {frame:03d}    24 FPS",fill="#77dac4")
         draw.text((755,478), f"00:0{int(t)}:{frame%24:02d}",fill="#adc5d4")

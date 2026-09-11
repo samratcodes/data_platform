@@ -1,58 +1,113 @@
-# FileMarket
+# map.filemarket
 
-A full-stack global data-sourcing workspace for AI and robotics teams, built with Next.js 16, React 19, Tailwind CSS 4, Framer Motion, and WebGL maps. The mint (#29CDA5) and blue (#5C86E5) design follows the supplied FileMarket logo.
+map.filemarket is a map-first sourcing network for enterprise AI teams and verified real-world data providers. Buyers discover facilities, data companies, and robotics operators; suppliers submit evidence and manage their listings; admins verify providers and manage procurement leads.
 
-## Run locally
+## Local setup
 
-Requires **Node.js 24** (the backend uses `node:sqlite`) and npm.
+Requirements: Node.js 24, npm, and PostgreSQL.
 
 ```bash
 npm ci
+copy .env.example .env
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:3000. On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
+Open `http://localhost:3000`. On Windows PowerShell, use `npm.cmd` if script execution blocks `npm.ps1`.
 
-No credentials are needed for local development. Create an account at `/signup`; accounts, hashed sessions, saved providers, and access requests persist in `.data/filemarket.sqlite`. This directory is ignored by Git. Passwords are salted and scrypt-hashed. Session cookies are HTTP-only, SameSite=Lax, expire after seven days, and use Secure in production. Mutation routes check their origin, and authentication attempts are rate-limited per account.
+Set either `DATABASE_URL` or `database` to the PostgreSQL connection URL. The migration is idempotent and can be run again after pulling schema changes.
 
-## Map configuration
+```dotenv
+DATABASE_URL=postgresql://user:password@host:5432/database?sslmode=require
+```
 
-Without a token, the app uses MapLibre GL with a globe projection, bundled Natural Earth country polygons, bundled label glyphs, and clustered operator markers. The map does not rely on external tile requests. The install script copies the installed MapLibre module worker and its shared dependency into `public/vendor/maplibre/`; this explicitly handles MapLibre 6 workers under Turbopack.
+## Accounts and roles
 
-To use Mapbox GL JS and the Mapbox Dark style, create `.env.local`:
+- **Buyer:** searches the verified network, saves providers, requests access, chats with suppliers, and submits concierge procurement briefs.
+- **Supplier:** uses a business email, submits facilities for verification, edits approved listings, monitors views and saves, handles buyer requests, and replies to conversations.
+- **Admin:** reviews supplier evidence, assigns online or physical verification, records internal notes, and manages concierge leads.
+
+To create the first administrator without shipping a default backdoor, set a unique ID and password in the environment, then run the idempotent seed:
+
+```dotenv
+ADMIN_SEED_NAME=map.filemarket Admin
+ADMIN_SEED_EMAIL=admin@your-company.com
+ADMIN_SEED_PASSWORD=use-a-unique-password-of-at-least-12-characters
+```
+
+```bash
+npm run db:seed
+```
+
+The same command imports the demonstration provider catalogue into PostgreSQL. Runtime catalogue pages read only approved database rows; they never merge hardcoded sample companies. Existing provider edits are preserved when the seed is rerun. To grant admin access to an existing account instead:
+
+For a local first run, the seed can generate a strong one-time password instead of storing a password in a file. It creates `admin@filemarket.local` and prints the password once:
+
+```bash
+npm run db:seed -- --create-admin
+```
+
+Set environment credentials for shared or production deployments; the generated local credential is intended only for development.
+
+```bash
+npm run admin:grant -- person@company.com
+```
+
+Authentication uses scrypt password hashes, random server-side sessions, HTTP-only SameSite cookies, origin checks on mutations, and database-backed rate limiting. Supplier signup rejects common free-email domains. New buyer and supplier accounts must verify email before saving providers, requesting access, starting chats, submitting supplier applications, or sending concierge briefs. Forgot-password and reset-password flows use hashed, single-use tokens and generic responses to avoid account enumeration.
+
+Email-verification and password-reset messages are recorded in `email_outbox` and immediately sent with the awaited Resend Node.js SDK call. Password-change alerts remain queued. Set `APP_URL`, `EMAIL_FROM`, and `RESEND_API_KEY`, then run `npm run emails:send` on a short production schedule to retry failed or deferred messages.
+
+## Google Sheets user directory
+
+New registrations and supplier application changes are added transactionally to a PostgreSQL outbox. PostgreSQL remains the source of truth, so a Google outage cannot block signup. Configure the four `GOOGLE_*` values documented in `.env.example`, share the spreadsheet with the service-account email, then run:
+
+```bash
+npm run integrations:sync
+```
+
+Run this command on a schedule in production. It creates or updates rows by internal user UUID, retries failed work with backoff, and never exports passwords, sessions, tokens, evidence images, or private addresses.
+
+Run `npm run db:maintain` on a daily schedule to remove expired sessions, expired rate-limit rows, and completed integration jobs older than 30 days. Admin audit history is retained.
+
+## Product flows
+
+- The public landing page opens on an auto-rotating 3D globe. Dragging, clicking, or zooming changes it to a navigable 2D map.
+- Facility, data-company, and robotics markers use distinct category icons. Closely located providers remain separate without overlapping.
+- A single preloaded sample video spotlight appears at a time on the 3D globe. Profile details remain gated until signup.
+- Only approved providers with online or physical verification are read from the database into the public catalogue.
+- Authenticated buyers get persistent country, provider-type, modality, and verification filters plus full provider side panels.
+- Access requests have pending, reviewing, accepted, and declined states. Suppliers manage them from their workspace.
+- Built-in conversations support buyer/supplier messages. The inbox refreshes while the app is open.
+- Supplier approval and provider publication run in one database transaction.
+
+## Main routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` and `/map` | Public globe and authenticated map explorer |
+| `/signup` and `/login` | Dual-role authentication |
+| `/verify-email` | Email verification and resend flow |
+| `/forgot-password` and `/reset-password` | Secure password recovery |
+| `/dashboard` | Buyer sourcing workspace |
+| `/onboarding` | Supplier application form |
+| `/supplier` | Supplier listings, analytics, requests, and inbox |
+| `/settings` | Profile, password rotation, and global session logout |
+| `/admin` | Verification queue and concierge lead pipeline |
+| `/operators/[slug]` | Auth-gated provider deep link |
+| `/blog` | map.filemarket sourcing insights |
+
+The route handlers under `app/api/` cover catalogue access, authentication, buyer workspaces, supplier applications and dashboards, verification, conversations, samples, location boundaries, and concierge requests.
+
+## Map and media
+
+The app uses MapLibre GL with local map assets and world boundaries. Mapbox can be enabled with an optional public token:
 
 ```dotenv
 NEXT_PUBLIC_MAPBOX_TOKEN=your_public_mapbox_token
-# Optional: persistent database location outside the default .data directory
-# FILEMARKET_DB_PATH=/persistent-storage/filemarket.sqlite
 ```
 
-Restart the dev server after setting the token. Restrict the public Mapbox token to your deployment origin in your Mapbox account. The Mapbox-specific path requires a valid token and was not exercised without one.
-
-## Application flows
-
-- **Public landing:** keeps a light, full-screen world map fixed behind three scrolling content sections. Passive five-second video cards stay pinned to source locations. Search and the three controls—country, data type, and location type—are the only discovery inputs; clicking the map does not open results.
-- **Public exploration:** search countries and data types, then narrow the map by country, modality, and facility or data company. Search results move the map to the matching source while the map itself remains visual context.
-- **Authenticated explorer:** unified search, avatar menu, sliding profiles, geographic context, capture environments, saved providers, videos, an interactive point-cloud viewer, and JSON/PLY sample downloads.
-- **Requests:** submit a use case, then view its persistent Pending status in your workspace. Duplicate requests to the same provider are idempotent.
-- **Mobile:** stacked search and filters, scrollable results, and a profile bottom sheet. Drag its handle upward or use Expand profile; drag downward to dismiss. Dialogs support keyboard focus, Escape, and backdrop dismissal.
-
-Routes: `/`, `/map`, `/login`, `/signup`, `/dashboard`, and protected `/operators/[slug]` links that open the explorer profile.
-
-## API
-
-| Route | Access | Behavior |
-| --- | --- | --- |
-| GET /api/catalogue | Public | Public operator summary fields |
-| GET /api/catalogue?slug=... | Authenticated | Full operator profile |
-| GET /api/auth/session | Public | Current user or null |
-| POST /api/auth/signup | Same-origin | Create an account and session |
-| POST /api/auth/login | Same-origin | Verify password and create session |
-| POST /api/auth/logout | Same-origin | Revoke session and remove cookie |
-| GET /api/workspace | Authenticated | Current user's saved providers and requests |
-| POST /api/workspace | Authenticated, same-origin | save, unsave, or request |
-| GET /api/samples/[slug] | Authenticated | Download synthetic JSON metadata |
-| GET /api/samples/[slug]?format=ply | Authenticated | Download synthetic point cloud |
+Restart the dev server after changing public environment variables. Restrict a Mapbox token to the deployment origin. Demonstration video and point-cloud samples are synthetic and clearly marked in the UI.
 
 ## Verification
 
@@ -61,30 +116,11 @@ npm run lint
 npx tsc --noEmit --incremental false
 npm run build
 npx playwright install chromium
-# With npm run dev running in a separate terminal:
 npm run test:e2e
 ```
 
-The browser suite covers tour progression and interruption, auth guards, sign-up/login/logout, session persistence, saved providers, requests, sample downloads, reduced motion, and responsive directory behavior. Tests create disposable `@example.test` accounts in the local database. Screenshots and traces are written to ignored `test-results/`. Set `TEST_BASE_URL` to test another local server.
+The Playwright suite checks the public globe-to-map flow, filters, responsive behavior, signup/login/logout, session persistence, workspace isolation, saved providers, access requests, and sample downloads. The test server defaults to `http://localhost:3000`; set `TEST_BASE_URL` to override it.
 
-## Project layout
+## Deployment
 
-- `components/explorer/`: active application, map, profiles, authentication, dialogs, point-cloud viewer.
-- `components/Landing/nodes.ts`: the existing 25-entry illustrative catalogue; edit this to update operators.
-- `lib/`: SQLite schema, session/password handling, shared synthetic point data.
-- `app/api/`: authenticated and public route handlers.
-- `app/explorer.css`: current responsive design system.
-- `public/demo/`: original five-second H.264 demonstration clips and posters.
-- `scripts/generate_samples.py`: reproducible synthetic video generation (requires Pillow and imageio-ffmpeg).
-- `scripts/sync-map-assets.mjs`: MapLibre worker setup, run automatically after npm install.
-- `tests/explorer.spec.ts`: browser and API checks.
-
-The earlier Leaflet components and boundary endpoints remain available in the repository but are not used by the new explorer.
-
-## Data and deployment scope
-
-The catalogue, capacities, previews, videos, and downloadable samples are **illustrative**, not live provider inventory. Generated samples are marked synthetic in the interface and exported files. Access requests are persisted locally; no provider email or external approval workflow is connected. Accounts are functional local accounts; email verification, password recovery, SSO, and account administration are not implemented.
-
-Deploy this version to a Node 24 server with persistent writable storage for SQLite and HTTPS. Ephemeral/serverless filesystems will not preserve accounts across instances; use a shared production database and an established identity provider before a multi-instance rollout. Back up the database and serve the production app behind HTTPS. Interface fonts are self-contained system fonts, so builds do not depend on Google Fonts.
-
-Natural Earth boundary data is public domain. MapLibre GL JS uses the BSD 3-Clause license; the worker setup copies its license alongside the redistributed assets. Mapbox is an optional external service governed by its own terms.
+Deploy to a Node.js 24 runtime with a reachable PostgreSQL database and HTTPS. Run `npm run db:migrate` during release setup, store the database URL as a secret, and grant the first admin account after signup. The application does not implement escrow, contract execution, or data delivery; it handles verified discovery, lead generation, access requests, and direct conversations.

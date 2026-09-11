@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { createSession, destroySession, getUser, hashPassword, rateLimited, sameOrigin, verifyPassword } from "@/lib/auth";
-import { database } from "@/lib/database";
+import { clearRateLimit, createSession, destroySession, getUser, hashPassword, rateLimited, verifyPassword } from "@/lib/auth";
+import { database, query } from "@/lib/database";
+import { appOrigin, consumeAuthToken, deliverQueuedEmail, queuePasswordChangedEmail, queueVerificationEmail, readAuthToken, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
+import { enqueueUserSheetSync } from "@/lib/integrations";
+import { validatePassword } from "@/lib/password";
+import { cleanSingleLine, readJsonObject, requestFingerprint } from "@/lib/security";
 export const runtime = "nodejs";
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const genericRecovery = "If an account exists for that email, we sent the next step.";
 
 export async function GET(_request: Request, context: { params: Promise<{ action: string }> }) {
   if ((await context.params).action !== "session") return Response.json({ error: "Not found" }, { status: 404 });
@@ -9,32 +16,177 @@ export async function GET(_request: Request, context: { params: Promise<{ action
 }
 
 export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {
-  if (!sameOrigin(request)) return Response.json({ error: "Invalid request origin" }, { status: 403 });
   const { action } = await context.params;
-  if (action === "logout") { await destroySession(); return Response.json({ ok: true }); }
-  if (!["login", "signup"].includes(action)) return Response.json({ error: "Not found" }, { status: 404 });
-  if (Number(request.headers.get("content-length")) > 8192) return Response.json({ error: "Request too large" }, { status: 413 });
-  let body;
-  try { body = await request.json(); } catch { return Response.json({ error: "Invalid request" }, { status: 400 }); }
-  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  const password = typeof body?.password === "string" ? body.password : "";
-  const name = typeof body?.name === "string" ? body.name.trim() : "";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || password.length < 10 || password.length > 128 || (action === "signup" && (name.length < 2 || name.length > 80))) {
-    return Response.json({ error: "Enter a valid email, a 10–128 character password, and your name when signing up." }, { status: 400 });
+  if (!["login", "signup", "logout", "resend-verification", "verify-email", "forgot-password", "reset-password"].includes(action)) return Response.json({ error: "Not found" }, { status: 404 });
+  const parsed = await readJsonObject(request, action === "logout" ? 1_024 : 8_192);
+  if (parsed.response) {
+    if (action === "forgot-password") console.log("[password-reset] Skipped: request body could not be parsed or exceeded the size limit.");
+    return parsed.response;
   }
-  if (rateLimited(`account:${email}`)) return Response.json({ error: "Too many attempts. Try again in 15 minutes." }, { status: 429 });
-  const db = database();
-  if (action === "signup") {
+  if (action === "logout") { await destroySession(); return Response.json({ ok: true }); }
+  if (action === "verify-email") {
+    const token = cleanSingleLine(parsed.body.token, 160);
+    const consumed = await consumeAuthToken(token, "email_verification");
+    if (!consumed) return Response.json({ error: "This verification link is invalid or expired." }, { status: 400 });
+    const client = await database().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = $1", [consumed.user_id]);
+      await enqueueUserSheetSync(consumed.user_id, client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    await createSession(consumed.user_id);
+    const refreshed = await getUser();
+    return Response.json({ ok: true, user: refreshed });
+  }
+  if (action === "resend-verification") {
+    const user = await getUser();
+    if (!user) {
+      console.log("[email-verification] Skipped resend: there is no authenticated user.");
+      return Response.json({ error: "Please log in." }, { status: 401 });
+    }
+    console.log("[email-verification] Resend request received.", { userId: user.id, recipient: user.email });
+    if (user.emailVerifiedAt || user.role === "admin") {
+      console.log("[email-verification] Skipped resend: account is already verified or exempt.", { userId: user.id, role: user.role });
+      return Response.json({ ok: true, verified: true });
+    }
+    if (await rateLimited(`verify-resend:${user.id}`, 3, 60 * 60_000)) {
+      console.log("[email-verification] Skipped resend: rate limit reached.", { userId: user.id });
+      return Response.json({ error: "Too many verification emails. Try again later." }, { status: 429, headers: { "Retry-After": "3600" } });
+    }
+    const delivery = await sendVerificationEmail(user, appOrigin(request));
+    console.log("[email-verification] Resend delivery attempt completed.", { userId: user.id, sent: delivery.sent, pending: delivery.pending, outboxId: delivery.outboxId });
+    if (!delivery.sent && !delivery.pending) return Response.json({ error: "The verification email could not be sent. Please try again." }, { status: 502 });
+    return Response.json({ ok: true });
+  }
+
+  const body = parsed.body;
+  if (action === "forgot-password") {
+    const email = cleanSingleLine(body.email, 254).toLowerCase();
+    console.log("[password-reset] Request received.", { email });
+    try {
+      if (!emailPattern.test(email)) {
+        console.log("[password-reset] Skipped: invalid email syntax.", { email });
+        return Response.json({ message: genericRecovery });
+      }
+
+      const clientKey = `password-reset-client:${requestFingerprint(request)}`;
+      const emailKey = `password-reset:${email}`;
+      const limited = await Promise.all([rateLimited(clientKey, 12, 60 * 60_000), rateLimited(emailKey, 3, 60 * 60_000)]);
+      console.log("[password-reset] Rate-limit checks completed.", { email, clientLimited: limited[0], emailLimited: limited[1] });
+      if (limited.some(Boolean)) {
+        console.log("[password-reset] Skipped: rate limit reached.", { email });
+        return Response.json({ message: genericRecovery });
+      }
+
+      console.log("[password-reset] Looking up the account.", { email });
+      const user = (await query<{ id: string; name: string; email: string }>("SELECT id, name, email FROM users WHERE email = $1", [email])).rows[0];
+      console.log("[password-reset] Account lookup completed.", { email, accountFound: Boolean(user) });
+      if (!user) {
+        console.log("[password-reset] Skipped: no matching account.", { email });
+        return Response.json({ message: genericRecovery });
+      }
+
+      const delivery = await sendPasswordResetEmail(user, appOrigin(request));
+      console.log("[password-reset] Delivery attempt completed.", { email, sent: delivery.sent, outboxId: delivery.outboxId });
+    } catch (error) {
+      console.error("[password-reset] Request failed before delivery completed.", error);
+    }
+    return Response.json({ message: genericRecovery });
+  }
+  if (action === "reset-password") {
+    const token = cleanSingleLine(body.token, 160);
+    const password = typeof body.password === "string" ? body.password.normalize("NFKC") : "";
+    const confirmation = typeof body.confirmation === "string" ? body.confirmation.normalize("NFKC") : "";
+    if (password !== confirmation) return Response.json({ error: "Passwords do not match." }, { status: 400 });
+    const candidate = await readAuthToken(token, "password_reset");
+    if (!candidate) return Response.json({ error: "This reset link is invalid or expired." }, { status: 400 });
+    const passwordError = validatePassword(password, candidate.email);
+    if (passwordError) return Response.json({ error: passwordError }, { status: 400 });
+    if (await verifyPassword(password, candidate.password_hash)) return Response.json({ error: "Choose a password you have not just used." }, { status: 400 });
+    const consumed = await consumeAuthToken(token, "password_reset");
+    if (!consumed) return Response.json({ error: "This reset link is invalid or expired." }, { status: 400 });
+    const hash = await hashPassword(password);
+    const client = await database().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2", [hash, consumed.user_id]);
+      await client.query("DELETE FROM sessions WHERE user_id = $1", [consumed.user_id]);
+      await queuePasswordChangedEmail({ id: consumed.user_id, email: consumed.email, name: consumed.name }, client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    await createSession(consumed.user_id);
+    const refreshed = await getUser();
+    return Response.json({ ok: true, user: refreshed });
+  }
+
+  const signingUp = action === "signup";
+  const email = cleanSingleLine(body.email, 254).toLowerCase();
+  const password = typeof body.password === "string" ? body.password.normalize("NFKC") : "";
+  const name = cleanSingleLine(body.name, 80);
+  if (!emailPattern.test(email) || password.length < (signingUp ? 12 : 1) || password.length > 128 || (signingUp && (name.length < 2 || String(body.name || "").length > 80))) {
+    return Response.json({ error: signingUp ? "Enter a valid email, your name, and a 12–128 character password." : "Email or password is incorrect." }, { status: signingUp ? 400 : 401 });
+  }
+  const accountKey = `account:${email}`;
+  const clientKey = `client:${requestFingerprint(request)}`;
+  const [accountLimited, clientLimited] = await Promise.all([rateLimited(accountKey, 8, 15 * 60_000), rateLimited(clientKey, 30, 15 * 60_000)]);
+  if (accountLimited || clientLimited) return Response.json({ error: "Too many attempts. Try again in 15 minutes." }, { status: 429, headers: { "Retry-After": "900" } });
+  if (signingUp) {
+    const passwordError = validatePassword(password, email);
+    if (passwordError) return Response.json({ error: passwordError }, { status: 400 });
+    const role = body.role === "supplier" ? "supplier" : "buyer";
+    if (role === "supplier" && /@(gmail|yahoo|hotmail|outlook|icloud|aol|protonmail|proton)\./i.test(email)) return Response.json({ error: "Suppliers must use a business email address." }, { status: 400 });
     const id = randomUUID();
     const hash = await hashPassword(password);
-    const result = db.prepare("INSERT OR IGNORE INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)").run(id, name, email, hash);
-    if (!result.changes) return Response.json({ error: "Unable to create this account. Try logging in." }, { status: 409 });
+    const client = await database().connect();
+    let created = false;
+    let verificationOutboxId: string | null = null;
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(`
+        WITH created_user AS (
+          INSERT INTO users (id, name, email, password_hash, role)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT(email) DO NOTHING
+          RETURNING id
+        )
+        INSERT INTO integration_outbox (id, event_type, entity_id)
+        SELECT $6, 'user.sheet.upsert', id FROM created_user
+        RETURNING entity_id
+      `, [id, name, email, hash, role, randomUUID()]);
+      created = Boolean(result.rowCount);
+      if (created) verificationOutboxId = await queueVerificationEmail({ id, name, email }, appOrigin(request), client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    if (!created) return Response.json({ error: "Unable to create this account. Try logging in or use another work email." }, { status: 409 });
+    if (verificationOutboxId) {
+      console.log("[email-verification] Signup transaction committed; starting verification email delivery.", { userId: id, recipient: email, outboxId: verificationOutboxId });
+      const delivery = await deliverQueuedEmail(verificationOutboxId);
+      console.log("[email-verification] Signup delivery attempt completed.", { userId: id, sent: delivery.sent, pending: delivery.pending, outboxId: delivery.outboxId });
+    }
     await createSession(id);
-    return Response.json({ user: { id, name, email } }, { status: 201 });
+    await clearRateLimit(accountKey);
+    return Response.json({ user: { id, name, email, role, emailVerifiedAt: null } }, { status: 201 });
   }
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as { id: string; name: string; email: string; password_hash: string } | undefined;
-  const valid = await verifyPassword(password, user?.password_hash ?? `${"0".repeat(32)}:${"0".repeat(128)}`);
+  const user = (await query<{ id: string; name: string; email: string; password_hash: string; role: "buyer" | "supplier" | "admin"; emailVerifiedAt: string | null }>('SELECT id, name, email, password_hash, role, email_verified_at AS "emailVerifiedAt" FROM users WHERE email = $1', [email])).rows[0];
+  const valid = await verifyPassword(password, user?.password_hash ?? `scrypt$32768$8$1$${"0".repeat(32)}$${"0".repeat(128)}`);
   if (!user || !valid) return Response.json({ error: "Email or password is incorrect." }, { status: 401 });
   await createSession(user.id);
-  return Response.json({ user: { id: user.id, name: user.name, email: user.email } });
+  await clearRateLimit(accountKey);
+  return Response.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerifiedAt: user.emailVerifiedAt } });
 }

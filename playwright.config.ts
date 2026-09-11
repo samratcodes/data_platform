@@ -1,4 +1,8 @@
 import { defineConfig } from "@playwright/test";
+import * as nextEnv from "@next/env";
+
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd());
 
 export default defineConfig({
   testDir: "./tests",

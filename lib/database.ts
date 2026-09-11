@@ -1,40 +1,45 @@
-import { DatabaseSync } from "node:sqlite";
-import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { Pool, type QueryResultRow } from "pg";
 
-const globalDatabase = globalThis as unknown as { filemarketDatabase?: DatabaseSync };
+const globalDatabase = globalThis as unknown as { filemarketPool?: Pool };
+
+function connectionString() {
+  const value = process.env.DATABASE_URL || process.env.database;
+  if (!value) throw new Error("Set database or DATABASE_URL to a PostgreSQL connection URL.");
+  const url = new URL(value);
+  url.searchParams.delete("sslmode");
+  url.searchParams.delete("uselibpqcompat");
+  return url.toString();
+}
 
 export function database() {
-  if (!globalDatabase.filemarketDatabase) {
-    const path = process.env.FILEMARKET_DB_PATH || join(process.cwd(), ".data", "filemarket.sqlite");
-    mkdirSync(dirname(path), { recursive: true });
-    const db = new DatabaseSync(path);
-    db.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA foreign_keys = ON;
-      PRAGMA busy_timeout = 5000;
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS sessions (
-        token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        expires_at INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS access_requests (
-        id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), operator_slug TEXT NOT NULL,
-        purpose TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Pending',
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, operator_slug)
-      );
-      CREATE TABLE IF NOT EXISTS saved_operators (
-        user_id TEXT NOT NULL REFERENCES users(id), operator_slug TEXT NOT NULL,
-        PRIMARY KEY(user_id, operator_slug)
-      );
-      CREATE TABLE IF NOT EXISTS auth_attempts (
-        key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, reset_at INTEGER NOT NULL
-      );
-    `);
-    globalDatabase.filemarketDatabase = db;
+  if (!globalDatabase.filemarketPool) {
+    const url = connectionString();
+    const local = /localhost|127\.0\.0\.1/.test(url);
+    globalDatabase.filemarketPool = new Pool({
+      connectionString: url,
+      // Serverless and development workers can each create a pool; keep the
+      // default deliberately small so they do not exhaust managed PostgreSQL
+      // connection limits during bursts of map and authentication requests.
+      max: Number(process.env.DATABASE_POOL_MAX || 4),
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
+      ssl: local ? undefined : { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false" },
+    });
   }
-  return globalDatabase.filemarketDatabase;
+  return globalDatabase.filemarketPool;
+}
+
+export async function query<T extends QueryResultRow = QueryResultRow>(text: string, values: unknown[] = []) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await database().query<T>(text, values);
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      const message = error instanceof Error ? error.message : "";
+      const retryable = ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN"].includes(code) || /timeout exceeded when trying to connect/i.test(message);
+      if (!retryable || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+    }
+  }
+  throw new Error("Database query retry limit reached.");
 }

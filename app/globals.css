@@ -81,9 +81,27 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --font-geist-sans: Arial, Helvetica, sans-serif;
+  --foreground: #173a33;
+  --font-geist-sans: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-geist-mono: "Cascadia Mono", Consolas, monospace;
+  --fm-surface: #ffffff;
+  --fm-surface-subtle: #f7faf9;
+  --fm-surface-muted: #eef6f3;
+  --fm-ink: #173a33;
+  --fm-text: #38574f;
+  --fm-muted: #6b817a;
+  --fm-line: #d6e4df;
+  --fm-green: #20b997;
+  --fm-green-strong: #12816a;
+  --fm-blue: #3b82f6;
+  --fm-purple: #7c3aed;
+  --fm-danger: #a24646;
+  --fm-gradient: linear-gradient(110deg, #20b997, #3b82f6);
+  --fm-shadow-sm: 0 6px 20px rgb(23 58 51 / 8%);
+  --fm-shadow-md: 0 18px 50px rgb(23 58 51 / 14%);
+  --fm-radius-sm: 8px;
+  --fm-radius-md: 14px;
+  --fm-radius-lg: 20px;
 }
 
 @theme inline {
@@ -97,6 +115,13 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgb(32 185 151 / 22%);
+  color: #0f3d33;
 }
 
 .leaflet-container {
