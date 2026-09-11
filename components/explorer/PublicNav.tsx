@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BookOpen, Grid2X2, Info, LogOut, Map, Settings } from "lucide-react";
+import { BookOpen, Grid2X2, Info, LogOut, Map, Settings } from "lucide-react";
 import Brand from "./Brand";
 import type { User } from "./model";
 
 type Props = {
   user?: User | null;
-  current?: "login" | "signup" | "supplier" | "onboarding" | "admin" | "blog";
+  current?: "login" | "supplier" | "onboarding" | "admin" | "blog";
 };
 
 export default function PublicNav({ user, current }: Props) {
@@ -30,7 +30,6 @@ export default function PublicNav({ user, current }: Props) {
         <button className="public-nav-logout" title="Log out" aria-label="Log out" onClick={async () => { await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json", "X-FileMarket-Request": "1" }, body: "{}" }); router.push("/"); router.refresh(); }}><LogOut/></button>
       </> : <>
         <Link href="/login" aria-current={current === "login" ? "page" : undefined}>Log in</Link>
-        <Link href="/signup" className="public-nav-join" aria-current={current === "signup" ? "page" : undefined}>Join map.filemarket <ArrowRight size={14}/></Link>
       </>}
     </nav>
   </header>;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Map, MapPinned } from "lucide-react";
+import { ArrowRight, Map } from "lucide-react";
 import PublicNavigationRail from "@/components/explorer/PublicNavigationRail";
 
 export const metadata: Metadata = { title: "Insights" };
@@ -17,7 +17,7 @@ export default function BlogPage() {
         <article><small>DATA RIGHTS · PLAYBOOK</small><h2>How to make exclusivity clear before collection</h2><p>A simple framework for aligning usage rights, geography, and delivery terms.</p><span>Rights · geography · reuse</span></article>
         <article><small>CONTRACTING · GUIDE</small><h2>Using milestones for data projects</h2><p>How acceptance criteria can protect both buyers and capture partners.</p><span>Scope · review · acceptance</span></article>
       </div>
-      <div className="blog-cta"><div><small>READY TO SOURCE?</small><h2>Move from research to a verified partner.</h2><p>Explore the global network, or list a facility for review.</p></div><div><Link className="primary-button" href="/map"><Map/>Explore the map <ArrowRight/></Link><Link className="secondary-button" href="/signup?role=data-company"><MapPinned/>List a provider</Link></div></div>
+      <div className="blog-cta"><div><small>READY TO SOURCE?</small><h2>Move from research to a verified partner.</h2><p>Explore the global network, then log in to continue.</p></div><div><Link className="primary-button" href="/map"><Map/>Explore the map <ArrowRight/></Link></div></div>
     </section>
   </main>;
 }

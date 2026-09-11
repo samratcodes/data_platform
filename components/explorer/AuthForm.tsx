@@ -21,7 +21,7 @@ export default function AuthForm({ signup = false, defaultRole = "buyer" }: { si
   const strength = [password.length >= 12, password.length >= 16, /[a-z]/.test(password) && /[A-Z]/.test(password), /\d/.test(password), /[^\p{L}\p{N}]/u.test(password)].filter(Boolean).length;
   const strengthLabel = strength >= 4 ? "Strong" : strength >= 2 ? "Good start" : "Needs work";
   return <main className={`sourcing-app auth-page ${signup ? "signup-page" : "login-page"}`}>
-    <PublicNavigationRail active={signup ? "signup" : "login"}/>
+    <PublicNavigationRail active="login"/>
     <div className="auth-layout">
       <section className="auth-story"><span className="eyebrow"><span className="live-dot"/> A WORLD OF POSSIBILITIES</span><h1>Your next breakthrough<br/>starts with <em>better data.</em></h1><p>Connect your AI to the real world. Discover capture facilities, explore data samples, and find the right partners, anywhere on Earth.</p><div className="auth-orbit"><Globe2 size={180} strokeWidth={.45}/><span/><span/><span/></div><p className="auth-footnote">Built for the teams building what comes next.</p></section>
       <motion.section initial={reducedMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="glass auth-card">
@@ -47,7 +47,7 @@ export default function AuthForm({ signup = false, defaultRole = "buyer" }: { si
           {error && <p role="alert" className="form-error">{error}</p>}
           <button className="primary-button" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin"/> : <>{signup ? "Create account" : "Log in to your workspace"}<ArrowUpRight size={17}/></>}</button>
         </form>
-        <p className="auth-switch">{signup ? "Already part of the network?" : "New to map.filemarket?"} <Link href={signup ? "/login" : "/signup"}>{signup ? "Log in" : "Create an account"}</Link></p>
+        {signup && <p className="auth-switch">Already part of the network? <Link href="/login">Log in</Link></p>}
         {!signup && <p className="auth-switch recovery-link"><Link href="/forgot-password">Forgot password?</Link></p>}
         <div className="auth-security-grid"><span><LockKeyhole size={15}/><b>Protected sign-in</b><small>Encrypted credentials and secure sessions</small></span><span><ShieldCheck size={15}/><b>Verified network</b><small>Supplier listings are reviewed</small></span></div>
       </motion.section>
