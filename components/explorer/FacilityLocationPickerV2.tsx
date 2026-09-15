@@ -24,6 +24,23 @@ const streetMapStyle: StyleSpecification = {
   layers: [{ id: "streets", type: "raster", source: "streets" }],
 };
 
+// The bundled country outlines keep pin placement available if the public
+// street-tile service is unreachable from a user's browser.
+const fallbackMapStyle: StyleSpecification = {
+  version: 8,
+  glyphs: "/fonts/{fontstack}/{range}.pbf",
+  sources: {
+    world: { type: "geojson", data: "/world.geojson", attribution: '<a href="https://www.naturalearthdata.com/">Natural Earth</a>' },
+    names: { type: "geojson", data: "/country-labels.geojson" },
+  },
+  layers: [
+    { id: "background", type: "background", paint: { "background-color": "#edf5f2" } },
+    { id: "land", type: "fill", source: "world", paint: { "fill-color": "#ffffff" } },
+    { id: "borders", type: "line", source: "world", paint: { "line-color": "#b8cdc7", "line-width": 0.8 } },
+    { id: "labels", type: "symbol", source: "names", minzoom: 1.2, layout: { "text-field": ["get", "NAME"], "text-font": ["Open Sans Semibold"], "text-size": 10 }, paint: { "text-color": "#6a817a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } },
+  ],
+};
+
 export default function FacilityLocationPickerV2({ longitude, latitude, onChange }: {
   longitude: string;
   latitude: string;
@@ -31,6 +48,7 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GLMap | null>(null);
+  const usingFallbackRef = useRef(false);
   const markerRef = useRef<GLMarker | null>(null);
   const onChangeRef = useRef(onChange);
   const [query, setQuery] = useState("");
@@ -38,6 +56,7 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [streetTilesUnavailable, setStreetTilesUnavailable] = useState(false);
   const [status, setStatus] = useState("Paste a Google Maps link, or search for a place and position the pin.");
 
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -61,6 +80,19 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
         maxZoom: 19,
         attributionControl: { compact: true },
       });
+      map.on("error", (event) => {
+        const error = event.error as Error & { url?: string };
+        const failedStreetTile = error?.url?.startsWith("https://tile.openstreetmap.org/")
+          || error?.message?.includes("tile.openstreetmap.org/");
+        if (!failedStreetTile) {
+          console.error("Location map error:", error);
+          return;
+        }
+        if (usingFallbackRef.current) return;
+        usingFallbackRef.current = true;
+        setStreetTilesUnavailable(true);
+        map.setStyle(fallbackMapStyle);
+      });
       map.addControl(new maplibre.NavigationControl({ showCompass: false }), "bottom-right");
       mapRef.current = map;
       map.on("click", (event) => {
@@ -77,10 +109,18 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
       markerRef.current?.remove();
       mapRef.current?.remove();
       mapRef.current = null;
+      usingFallbackRef.current = false;
     };
     // Initial coordinates determine the starting camera; later changes are synced below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const retryStreetMap = () => {
+    if (!mapRef.current) return;
+    usingFallbackRef.current = false;
+    setStreetTilesUnavailable(false);
+    mapRef.current.setStyle(streetMapStyle);
+  };
 
   useEffect(() => {
     const parsedLongitude = Number(longitude);
@@ -168,7 +208,8 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
       <div className="facility-import-heading"><span><BadgeCheck size={15}/>Imported from Google Maps</span><strong>{selected.name || selected.label}</strong><small>{selected.label}</small></div>
       {selected.photos?.length ? <div className="facility-import-photos">{selected.photos.map((photo, index) => <Image key={photo} src={photo} alt={`${selected.name || "Facility"} Google Maps photo ${index + 1}`} width={360} height={220} sizes="(max-width: 640px) 75vw, 280px"/>)}</div> : <div className="facility-import-no-photo"><ImageIcon size={17}/><span>This listing did not expose a public place photo. You can add one below.</span></div>}
     </section>}
-    <div ref={container} className="facility-picker-map" aria-label="Detailed street map for placing the facility pin"/>
+    <div ref={container} className="facility-picker-map" aria-label={streetTilesUnavailable ? "Fallback map for placing the facility pin" : "Detailed street map for placing the facility pin"}/>
+    {streetTilesUnavailable && <div className="facility-picker-map-warning" role="status"><span>Street tiles are unavailable. Search and pin placement still work on the fallback map.</span><button type="button" onClick={retryStreetMap}>Retry street map</button></div>}
     <div className="facility-picker-status" aria-live="polite"><Crosshair size={13}/><span>{status}</span>{longitude && latitude && <strong>{Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}</strong>}</div>
   </div>;
 }

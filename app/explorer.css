@@ -630,6 +630,8 @@
   .wizard-password-strength > div { width:100%; }
 }
 
+
+
 /* Official evidence: individual document labels and persistent previews. */
 .official-document-picker { padding:18px; border:1px solid #dbe9e3; border-radius:18px; background:#fbfdfc; }
 .official-document-heading { display:flex; align-items:center; gap:12px; }
@@ -2065,6 +2067,9 @@
 .facility-review-list span,.facility-review-list small { color:var(--fm-muted); font-size:12px; }
 .sample-download { display:inline-flex; margin:4px 0 12px; padding:8px 10px; border:1px solid #b8dcd1; border-radius:9px; color:#126f57; background:#edf9f5; font-weight:700; }
 .facility-picker-map { height:430px; border-top:1px solid #e1ebe8; border-bottom:1px solid #e1ebe8; }
+.facility-picker-map-warning { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 14px; padding:10px 14px; border-bottom:1px solid #ead8a9; color:#765a20; background:#fff8e8; font-size:12px; line-height:1.5; }
+.facility-picker-map-warning button { flex:none; padding:7px 10px; border:1px solid #d8b872; border-radius:8px; color:#725416; background:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+.facility-picker-map-warning button:hover { background:#fff4d6; }
 .facility-picker-results button { font-size:13px; }
 .facility-picker-status { font-size:12px; }
 .facility-picker .maplibregl-ctrl-attrib { font-size:10px; }
@@ -3044,4 +3049,42 @@
   .company-wizard-full .company-wizard-progress { min-width:0; width:100%; }
   .wizard-password-strength { align-items:flex-start; flex-direction:column; gap:8px; }
   .wizard-password-strength > div { width:100%; }
+}
+
+/* Company signup validation and responsive wizard overrides. */
+.company-wizard-alert { display:flex; align-items:flex-start; gap:10px; margin-bottom:17px; padding:13px 15px; border:1px solid #e9bfc1; border-radius:11px; color:#9c313c; background:#fff4f3; }
+.company-wizard-alert > svg { flex:none; margin-top:2px; }
+.company-wizard-alert span { display:grid; gap:3px; min-width:0; }
+.company-wizard-alert strong { font-size:13px; }
+.company-wizard-alert small { font-size:12px; line-height:1.45; }
+.company-wizard-full .wizard-input-card.has-error,.company-wizard-full .wizard-input-card.has-error:focus-within,.company-wizard-full .wizard-location-picker.has-error { border-color:#d37878; background:#fffafa; box-shadow:0 0 0 3px #fce9e8; }
+.wizard-field-error,.wizard-section-error { display:block; margin:8px 0 0; color:#a5363c; font-size:12px; font-weight:700; line-height:1.4; }
+.wizard-field-error { overflow-wrap:anywhere; }
+.wizard-capability-grid.has-error { padding:10px; border:1px solid #d37878; border-radius:14px; background:#fffafa; }
+.official-document-gallery article.has-error { border-color:#d37878; box-shadow:0 0 0 2px #fce9e8; }
+.official-document-details input[aria-invalid="true"],.official-document-preview input[aria-invalid="true"] { border-color:#d37878; background:#fffafa; }
+@media(max-width:980px) {
+  .company-wizard-full .wizard-field-grid { grid-template-columns:1fr; }
+  .company-wizard-full .wizard-choice-grid { grid-template-columns:1fr; }
+  .company-wizard-full .wizard-choice-grid button { min-height:76px; }
+}
+@media(max-width:760px) {
+  .company-signup-page { width:100%; min-width:0; padding:54px 0 0; }
+  .company-wizard.company-wizard-full { width:100%; min-width:0; }
+  .company-wizard-banner { width:100%; min-height:0; align-items:center; padding:14px 17px; }
+  .company-wizard-banner > span:last-child { writing-mode:horizontal-tb; }
+  .company-wizard-full .company-wizard-form { min-width:0; padding:22px 17px 80px; }
+  .company-wizard-full .company-wizard-content { min-width:0; overflow:visible; }
+  .company-wizard-full .wizard-input-card { min-width:0; }
+  .company-wizard-full .wizard-field-grid,.company-wizard-full .wizard-capability-grid { grid-template-columns:1fr; }
+  .company-wizard-full .company-wizard-form footer { align-items:stretch; flex-direction:column; }
+  .company-wizard-full .company-wizard-actions { width:100%; }
+  .company-wizard-full .company-wizard-actions button { flex:1; }
+}
+@media(max-width:420px) {
+  .company-wizard-banner h1 { font-size:17px; }
+  .company-wizard-banner > span:last-child { display:none; }
+  .official-document-gallery,.office-image-gallery { grid-template-columns:1fr; }
+  .official-document-toolbar label,.office-image-picker-add { max-width:100%; white-space:normal; }
+  .company-wizard-full .company-wizard-form { padding-inline:14px; }
 }

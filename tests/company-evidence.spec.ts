@@ -45,7 +45,7 @@ test("company evidence is reviewable, editable, limited, and mobile-safe", async
   await expect(page.locator(".official-document-picker input[type=file]")).toBeEnabled();
 
   await page.locator(".official-document-picker input[type=file]").setInputFiles({ name: "too-large.png", mimeType: "image/png", buffer: Buffer.alloc(10_000_001) });
-  await expect(page.locator(".company-wizard-error")).toContainText("no larger than 10 MB");
+  await expect(page.locator(".company-wizard-alert")).toContainText("no larger than 10 MB");
   await expect(page.locator(".official-document-gallery article")).toHaveCount(4);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
