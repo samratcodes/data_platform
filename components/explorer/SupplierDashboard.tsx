@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, Bookmark, Eye, FileQuestion, MessageSquare, Pencil, Plus, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Bookmark, Clock3, Eye, FileQuestion, MessageSquare, Pencil, Plus, ShieldCheck } from "lucide-react";
 import BuyerNavigationRail from "./BuyerNavigationRail";
 import { api, type User } from "./model";
 import Inbox from "./Inbox";
@@ -41,12 +41,14 @@ export default function SupplierDashboard({ user }: { user: User }) {
   const views = data?.providers.reduce((total, provider) => total + provider.profile_views, 0) ?? 0;
   const saves = data?.providers.reduce((total, provider) => total + provider.saves, 0) ?? 0;
   const requests = data?.providers.reduce((total, provider) => total + provider.access_requests, 0) ?? 0;
+  const companyApplication = data?.applications.find((application) => application.application_kind === "company");
 
   return <main className="sourcing-app admin-page">
     <BuyerNavigationRail user={user} active="supplier"/>
     <section className="admin-shell">
       <div className="onboarding-intro"><span>DATA COMPANY WORKSPACE</span><h1>Your presence on map.filemarket</h1><p>Manage your verified company, facility reviews, buyer requests, and conversations.</p></div>
       {error && <p className="form-error">{error}</p>}
+      {companyApplication && companyApplication.status !== "approved" && <section className="company-review-status" data-status={companyApplication.status}><Clock3/><div><strong>{companyApplication.status === "rejected" ? "Verification needs an update" : "Company verification is pending"}</strong><p>{companyApplication.status === "rejected" ? companyApplication.admin_notes || "Review the feedback and update your company application." : "Your company application is with the trust team. We will notify you when the review is complete."}</p></div><em>{companyApplication.status}</em></section>}
       <div className="supplier-metrics"><article><Eye/><strong>{views}</strong><span>Profile views</span></article><article><Bookmark/><strong>{saves}</strong><span>Buyer saves</span></article><article><FileQuestion/><strong>{requests}</strong><span>Data requests</span></article><article><MessageSquare/><strong>{data?.conversations.length ?? 0}</strong><span>Conversations</span></article></div>
       <div className="supplier-heading"><h2>Facilities and reviews</h2><Link className="primary-button" href="/onboarding#facility"><Plus size={15}/>Add a facility</Link></div>
       <SupplierRequests requests={data?.accessRequests ?? []} busy={requestBusy} onStatus={async (requestId, status) => {

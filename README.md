@@ -81,12 +81,27 @@ Run `npm run db:maintain` on a daily schedule to remove expired sessions, expire
 - Built-in conversations support buyer/supplier messages. The inbox refreshes while the app is open.
 - Supplier approval and provider publication run in one database transaction.
 
+## Project structure
+
+- `app/` contains route files and API handlers. Each account-creation path has its own route folder so the URL, metadata, and role are unambiguous.
+- `components/explorer/` contains the interactive map, navigation rails, authentication form, and role-specific workspace UI.
+- `lib/` contains server-side data access, authentication, and catalogue helpers.
+- `tests/` contains Playwright coverage for the public, authentication, workspace, and responsive flows.
+
+### Account creation routes
+
+- `/signup/data-buyer` creates a buyer account for discovering and sourcing verified providers.
+- `/signup/data-company` is a full-page data-company application: account, company profile, location, and data capabilities are submitted together. After email verification, it appears as pending in the supplier workspace.
+- `/signup` redirects to `/signup/data-buyer` for older links and bookmarks.
+
 ## Main routes
 
 | Route | Purpose |
 | --- | --- |
 | `/` and `/map` | Public globe and authenticated map explorer |
-| `/signup` and `/login` | Dual-role authentication |
+| `/signup/data-buyer` | Data-buyer account creation |
+| `/signup/data-company` | Data-company account and verification application |
+| `/signup` and `/login` | Buyer-signup redirect and sign-in |
 | `/verify-email` | Email verification and resend flow |
 | `/forgot-password` and `/reset-password` | Secure password recovery |
 | `/dashboard` | Buyer sourcing workspace |

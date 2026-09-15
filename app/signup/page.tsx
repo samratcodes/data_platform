@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Log in", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Create account", robots: { index: false, follow: false } };
 
-export default async function SignupPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next } = await searchParams;
-  redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
+// Preserve the original entry point while giving every account type its own URL.
+export default function SignupPage() {
+  redirect("/signup/data-buyer");
 }

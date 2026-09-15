@@ -8,6 +8,8 @@ import { cleanMultiline, cleanSingleLine, isUuid, readJsonObject } from "@/lib/s
 const levels = new Set(["unverified", "online", "physical"]);
 const statuses = new Set(["pending", "approved", "rejected"]);
 const admin = async () => (await getUser())?.role === "admin";
+type CompanyAsset = { key: string; name: string; contentType: string; type?: string };
+const publicAssetUrl = (key: string) => `/api/company-assets?public=1&key=${encodeURIComponent(key)}`;
 
 export async function GET(request: Request) {
   if (!await admin()) return Response.json({ error: "Admin access required." }, { status: 403 });
@@ -16,8 +18,9 @@ export async function GET(request: Request) {
     if (!isUuid(sampleId)) return Response.json({ error: "Sample not found." }, { status: 404 });
     const sample = (await query<{ sample_file_name: string; sample_mime_type: string; sample_data: Buffer }>(`
       SELECT sample_file_name, sample_mime_type, sample_data
-      FROM supplier_applications
-      WHERE id = $1 AND application_kind = 'company' AND sample_data IS NOT NULL
+      FROM supplier_applications applications
+      JOIN users ON users.id = applications.user_id
+      WHERE applications.id = $1 AND applications.application_kind = 'company' AND applications.sample_data IS NOT NULL AND users.email_verified_at IS NOT NULL
     `, [sampleId])).rows[0];
     if (!sample) return Response.json({ error: "Sample not found." }, { status: 404 });
     const safeName = sample.sample_file_name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 160) || "supplier-sample";
@@ -26,7 +29,7 @@ export async function GET(request: Request) {
   const [result, audit, sync] = await Promise.all([
     query(`
       SELECT (to_jsonb(applications) - 'sample_data') || jsonb_build_object('has_sample', applications.sample_data IS NOT NULL) AS application,
-             users.name AS applicant_name, users.email AS applicant_email,
+             users.name AS applicant_name, users.email AS applicant_email, users.email_verified_at AS applicant_email_verified_at,
              EXISTS (
                SELECT 1 FROM supplier_applications company
                WHERE company.user_id = applications.user_id
@@ -34,6 +37,7 @@ export async function GET(request: Request) {
              ) AS company_approved
       FROM supplier_applications applications
       JOIN users ON users.id = applications.user_id
+      WHERE users.email_verified_at IS NOT NULL
       ORDER BY applications.submitted_at DESC
     `),
     query(`
@@ -50,7 +54,7 @@ export async function GET(request: Request) {
     `),
   ]);
   return Response.json({
-    applications: result.rows.map((row) => ({ ...row.application, applicant_name: row.applicant_name, applicant_email: row.applicant_email, company_approved: row.company_approved })),
+    applications: result.rows.map((row) => ({ ...row.application, applicant_name: row.applicant_name, applicant_email: row.applicant_email, applicant_email_verified_at: row.applicant_email_verified_at, company_approved: row.company_approved })),
     audit: audit.rows,
     sheetSync: {
       configured: Boolean(process.env.GOOGLE_SHEETS_SPREADSHEET_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
@@ -82,11 +86,17 @@ export async function PATCH(request: Request) {
       hardware_pictures: string[]; linkedin_url: string | null; twitter_url: string | null;
       huggingface_url: string | null; website_url: string | null; profile_description: string;
       capacity: string; capture_environments: string[]; provider_slug: string | null;
+      office_images: CompanyAsset[]; official_documents: CompanyAsset[];
       has_sample: boolean;
     }>("SELECT supplier_applications.*, (sample_data IS NOT NULL) AS has_sample FROM supplier_applications WHERE id = $1 FOR UPDATE", [id])).rows[0];
     if (!application) {
       await client.query("ROLLBACK");
       return Response.json({ error: "Application not found." }, { status: 404 });
+    }
+    const verifiedEmail = await client.query("SELECT 1 FROM users WHERE id = $1 AND email_verified_at IS NOT NULL", [application.user_id]);
+    if (!verifiedEmail.rowCount) {
+      await client.query("ROLLBACK");
+      return Response.json({ error: "This supplier must verify their email before their application can be reviewed." }, { status: 422 });
     }
     await client.query("UPDATE supplier_applications SET status = $1, verification_level = $2, admin_notes = $3, reviewed_at = NOW() WHERE id = $4", [status, level, notes, id]);
     const base = application.business_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "provider";
@@ -106,7 +116,9 @@ export async function PATCH(request: Request) {
         return Response.json({ error: "This facility submission is missing its required photo evidence." }, { status: 422 });
       }
       const isFacility = application.application_kind === "facility";
-      let mapPhotos = application.hardware_pictures;
+      let mapPhotos = application.application_kind === "company" && application.office_images.length
+        ? application.office_images.map((asset) => publicAssetUrl(asset.key))
+        : application.hardware_pictures;
       if (!isFacility && !mapPhotos.length) {
         mapPhotos = (await resolveGoogleMapsPlace(application.maps_url)).photos;
         if (!mapPhotos.length) {

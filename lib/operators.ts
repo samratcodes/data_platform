@@ -43,14 +43,14 @@ function fromRow(row: ProviderRow): NodeData {
   };
 }
 
-export async function verifiedOperators(options: { includeDemo?: boolean } = {}) {
+export async function verifiedOperators() {
   const result = await query<ProviderRow>(`
     SELECT id, slug, name, city, country, longitude, latitude, provider_type, modalities, media, profile, verification_level
     FROM providers
     WHERE status = 'approved' AND verification_level IN ('online', 'physical')
-      AND ($1::boolean OR is_demo = FALSE)
+      AND is_demo = FALSE
     ORDER BY created_at ASC, id ASC
-  `, [options.includeDemo === true]);
+  `);
   return result.rows.map(fromRow);
 }
 

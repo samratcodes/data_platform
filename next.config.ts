@@ -8,7 +8,8 @@ const contentSecurityPolicy = [
   "media-src 'self' blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com https://tile.openstreetmap.org",
-  "frame-src 'none'",
+  // Official-document PDF previews use browser-created blob URLs.
+  "frame-src 'self' blob:",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
@@ -22,6 +23,14 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**.googleusercontent.com" }],
+    // The route itself authorizes every key and only serves office images from
+    // approved applications to anonymous requests.
+    localPatterns: [
+      // Static files in /public, such as the application brand and sample media.
+      { pathname: "/**", search: "" },
+      // This route validates the object key and application approval server-side.
+      { pathname: "/api/company-assets" },
+    ],
   },
   async headers() {
     return [{

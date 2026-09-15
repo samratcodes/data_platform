@@ -1,6 +1,6 @@
 import { getUser, rateLimited } from "@/lib/auth";
 import { isGoogleMapsUrl, resolveGoogleMapsPlace } from "@/lib/google-maps-place";
-import { cleanSingleLine } from "@/lib/security";
+import { cleanSingleLine, requestFingerprint } from "@/lib/security";
 
 type NominatimResult = {
   display_name?: unknown;
@@ -11,9 +11,9 @@ type NominatimResult = {
 
 export async function GET(request: Request) {
   const user = await getUser();
-  if (!user) return Response.json({ error: "Please log in." }, { status: 401 });
-  if (user.role !== "supplier" && user.role !== "admin") return Response.json({ error: "Supplier access required." }, { status: 403 });
-  if (await rateLimited(`geocode:${user.id}`, 60, 60 * 60_000)) return Response.json({ error: "Location search limit reached. Try again later." }, { status: 429 });
+  if (user && user.role !== "supplier" && user.role !== "admin") return Response.json({ error: "Supplier access required." }, { status: 403 });
+  const rateLimitKey = user ? `geocode:${user.id}` : `geocode-signup:${requestFingerprint(request)}`;
+  if (await rateLimited(rateLimitKey, 60, 60 * 60_000)) return Response.json({ error: "Location search limit reached. Try again later." }, { status: 429 });
 
   const search = cleanSingleLine(new URL(request.url).searchParams.get("q"), 2_048);
   if (search.length < 3) return Response.json({ error: "Enter at least three characters." }, { status: 400 });

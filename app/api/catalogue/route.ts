@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     if (operator) await recordProfileView(slug);
     return operator ? Response.json({ operator }, { headers: { "Cache-Control": "private, no-store" } }) : Response.json({ error: "Operator not found" }, { status: 404 });
   }
-  const source = await verifiedOperators({ includeDemo: !user });
+  const source = await verifiedOperators();
   const operators = source.map(({ id, slug, name, city, country, coordinates, type, verificationLevel, modalities, media }) => ({ id, slug, name, city, country, coordinates, type, verificationLevel, modalities, media }));
   return Response.json({ operators });
 }

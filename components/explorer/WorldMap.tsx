@@ -44,6 +44,9 @@ const lightStyle: StyleSpecification = {
   ],
 };
 
+// Keep the globe prominent without crowding the landing-page controls.
+const landingGlobeZoom = 2.45;
+
 const pinShell = (color: string, tint: string, glyph: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
   <defs><filter id="shadow" x="-30%" y="-20%" width="160%" height="160%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.4" flood-color="#16352f" flood-opacity=".2"/></filter></defs>
   <path filter="url(#shadow)" d="M18 1.5C9.35 1.5 2.5 8.1 2.5 16.45 2.5 27.7 18 42 18 42s15.5-14.3 15.5-25.55C33.5 8.1 26.65 1.5 18 1.5Z" fill="#fff" stroke="${color}" stroke-width="1.65"/>
@@ -76,18 +79,6 @@ const createMapIcon = (svgString: string): Promise<HTMLImageElement> => {
   });
 };
 
-type RuntimeMarker = {
-  setLngLat: (coordinates: [number, number]) => RuntimeMarker;
-  addTo: (map: unknown) => RuntimeMarker;
-  remove: () => void;
-};
-
-type RuntimeMarkerConstructor = new (options: {
-  element: HTMLElement;
-  anchor: "bottom";
-  offset: [number, number];
-}) => RuntimeMarker;
-
 function createGlobeVideoPreview(
   operator: PublicOperator,
   onOpen: () => void
@@ -98,6 +89,16 @@ function createGlobeVideoPreview(
   card.setAttribute("tabindex", "0");
   card.setAttribute("aria-hidden", "true");
   card.setAttribute("aria-label", `Open ${operator.name} profile`);
+
+  const panel = document.createElement("div");
+  panel.className = "globe-video-panel";
+  const heading = document.createElement("div");
+  heading.className = "globe-video-heading";
+  const category = document.createElement("span");
+  category.textContent = operator.type === "Facility" ? "DATA FACILITY" : operator.type === "Robotics" ? "ROBOTICS PROVIDER" : "DATA COMPANY";
+  const verified = document.createElement("span");
+  verified.textContent = "VERIFIED";
+  heading.append(category, verified);
 
   const media = document.createElement("div");
   media.className = "globe-video-media";
@@ -134,16 +135,17 @@ function createGlobeVideoPreview(
   const name = document.createElement("strong");
   name.textContent = operator.name;
   const place = document.createElement("small");
-  place.textContent = `${operator.type} · ${operator.city}, ${operator.country}`;
+  place.textContent = `${operator.city}, ${operator.country}`;
   copy.append(name, place);
   const action = document.createElement("span");
   action.setAttribute("aria-hidden", "true");
-  action.textContent = "↗";
+  action.textContent = "View profile ↗";
   details.append(copy, action);
 
   const progress = document.createElement("i");
   progress.className = "globe-video-progress";
-  card.append(media, details, progress);
+  panel.append(heading, media, details, progress);
+  card.append(panel);
 
   const open = (event: Event) => { event.stopPropagation(); onOpen(); };
   card.addEventListener("click", open);
@@ -156,12 +158,14 @@ function createGlobeVideoPreview(
 
   return {
     card,
-    reveal: () => {
-      void video?.play().catch(() => undefined);
+    reveal: (reducedMotion: boolean) => {
+      if (!reducedMotion) void video?.play().catch(() => undefined);
       card.setAttribute("aria-hidden", "false");
       card.classList.add("is-visible");
+      if (reducedMotion) card.classList.add("is-static");
     },
     conceal: () => {
+      video?.pause();
       card.setAttribute("aria-hidden", "true");
       card.classList.remove("is-visible");
     },
@@ -175,16 +179,53 @@ function createGlobeVideoPreview(
   };
 }
 
-type GlobePreview = ReturnType<typeof createGlobeVideoPreview> & { marker: RuntimeMarker; operator: PublicOperator };
+type GlobePreview = ReturnType<typeof createGlobeVideoPreview> & { remove: () => void; operator: PublicOperator };
 
 function countryUniquePreviewOperators(operators: PublicOperator[]) {
   const countries = new Map<string, PublicOperator>();
   operators.forEach((operator) => {
     const key = operator.country.trim().toLocaleLowerCase();
     if (!key) return;
-    if (!countries.has(key)) countries.set(key, operator);
+    const current = countries.get(key);
+    if (!current || (operator.type === "Data Company" && current.type !== "Data Company")) countries.set(key, operator);
   });
   return [...countries.values()];
+}
+
+function tourOperators(operators: PublicOperator[]) {
+  const uniqueCountries = countryUniquePreviewOperators(operators);
+  if (uniqueCountries.length <= 5) return uniqueCountries;
+
+  const sampleSize = Math.min(8, uniqueCountries.length);
+  const orderedByLongitude = [...uniqueCountries].sort((a, b) => a.coordinates[0] - b.coordinates[0]);
+  return Array.from({ length: sampleSize }, (_, index) => orderedByLongitude[Math.floor(index * orderedByLongitude.length / sampleSize)]);
+}
+
+function mountGlobePreview(map: GLMap, operator: PublicOperator, onOpen: () => void) {
+  const preview = createGlobeVideoPreview(operator, onOpen);
+  preview.card.classList.add("globe-floating-preview");
+  document.body.appendChild(preview.card);
+
+  const position = () => {
+    const point = map.project(operator.coordinates);
+    const bounds = map.getContainer().getBoundingClientRect();
+    preview.card.style.left = `${bounds.left + point.x}px`;
+    preview.card.style.top = `${bounds.top + point.y}px`;
+    preview.card.classList.toggle("is-below", bounds.top + point.y < 260);
+  };
+  position();
+  map.on("move", position);
+  map.on("resize", position);
+
+  return {
+    ...preview,
+    operator,
+    remove: () => {
+      map.off("move", position);
+      map.off("resize", position);
+      preview.card.remove();
+    },
+  };
 }
 
 function compactMarkerOffset(index: number, count: number): [number, number] {
@@ -229,6 +270,7 @@ function features(operators: PublicOperator[]): FeatureCollection<Point> {
 export default function WorldMap(props: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GLMap | null>(null);
+  const tourUpdateRef = useRef<(() => void) | null>(null);
   const latest = useRef(props);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
@@ -244,32 +286,39 @@ export default function WorldMap(props: Props) {
     let projectionFrame: number | undefined;
     let projectionClassTimer: number | undefined;
     let stopGlobePreview: (() => void) | undefined;
-    let previewTourActive = false;
     let hasFlattened = initialProjection === "mercator";
     let flattenComplete = initialProjection === "mercator";
-    let lastRotationTime = 0;
+    let hasIntroduced = false;
+    const landingZoom = () => latest.current.theme === "light" ? (window.innerWidth < 640 ? 1.5 : landingGlobeZoom) : 1.7;
+    const emptyPadding = { top: 0, right: 0, bottom: 0, left: 0 };
+    const globePadding = () => ({ ...emptyPadding, top: latest.current.theme === "light" && window.innerWidth > 760 ? 48 : 0 });
+    const openingOperator = latest.current.theme === "light" && initialProjection === "globe" ? tourOperators(latest.current.operators)[0] : undefined;
+    const openingCenter: [number, number] = openingOperator
+      ? [openingOperator.coordinates[0] + 70, openingOperator.coordinates[1]]
+      : [12, 25];
 
     async function initialize() {
       try {
         const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
         let map: GLMap;
-        let MarkerClass: RuntimeMarkerConstructor;
 
         if (token) {
           const mapbox = (await import("mapbox-gl")).default;
           if (cancelled || !container.current) return;
-          MarkerClass = mapbox.Marker as unknown as RuntimeMarkerConstructor;
-          map = new mapbox.Map({ container: container.current, accessToken: token, style: latest.current.theme === "light" ? "mapbox://styles/mapbox/light-v11" : "mapbox://styles/mapbox/dark-v11", center: [12, 25], zoom: latest.current.theme === "light" ? 2.8 : 1.7, projection: initialProjection, attributionControl: true }) as unknown as GLMap;
+          map = new mapbox.Map({ container: container.current, accessToken: token, style: latest.current.theme === "light" ? "mapbox://styles/mapbox/light-v11" : "mapbox://styles/mapbox/dark-v11", center: openingCenter, zoom: landingZoom(), projection: initialProjection, attributionControl: true }) as unknown as GLMap;
         } else {
           const maplibre = await import("maplibre-gl");
           if (cancelled || !container.current) return;
           maplibre.setWorkerUrl("/vendor/maplibre/maplibre-gl-worker.mjs");
-          MarkerClass = maplibre.Marker as unknown as RuntimeMarkerConstructor;
-          map = new maplibre.Map({ container: container.current, style: latest.current.theme === "light" ? lightStyle : darkStyle, center: [12, 25], zoom: latest.current.theme === "light" ? 2.8 : 1.7, minZoom: 1.1, maxZoom: 16, attributionControl: { compact: true } });
+          map = new maplibre.Map({ container: container.current, style: latest.current.theme === "light" ? lightStyle : darkStyle, center: openingCenter, zoom: landingZoom(), minZoom: 1.1, maxZoom: 16, attributionControl: { compact: true } });
         }
 
+        if (initialProjection === "globe") map.setPadding(globePadding());
         mapRef.current = map;
-        const observer = new ResizeObserver(() => map.resize());
+        const observer = new ResizeObserver(() => {
+          map.resize();
+          if (!hasFlattened) map.setPadding(globePadding());
+        });
         observer.observe(container.current!);
         cleanup = () => { observer.disconnect(); map.remove(); mapRef.current = null; };
 
@@ -350,109 +399,104 @@ export default function WorldMap(props: Props) {
             }
           });
 
-          if (latest.current.theme === "light" && latest.current.showPreviews !== false && latest.current.operators.length > 0) {
+          tourUpdateRef.current = () => {
+            stopGlobePreview?.();
+            if (cancelled || hasFlattened || initialProjection !== "globe" || latest.current.theme !== "light" || latest.current.showPreviews === false) return;
+
+            const previewOperators = tourOperators(latest.current.operators);
+            if (!previewOperators.length) return;
             let previewIndex = 0;
             let currentPreview: GlobePreview | undefined;
-            let queuedPreview: GlobePreview | undefined;
-            let revealTimer: number | undefined;
-            let cameraTimer: number | undefined;
-            let cycleTimer: number | undefined;
+            let dwellTimer: number | undefined;
             let stopped = false;
-            const visibleSampleDuration = 5_000;
-            const cameraLeadTime = 1_200;
+            const dwellDuration = 5_000;
+            const fullTurnDuration = 12_000;
 
-            const previewOperators = countryUniquePreviewOperators(latest.current.operators);
+            const destroyPreview = () => {
+              if (!currentPreview) return;
+              currentPreview.conceal();
+              currentPreview.dispose();
+              currentPreview.remove();
+              currentPreview = undefined;
+            };
 
-            const mountPreview = (index: number): GlobePreview | undefined => {
-              if (!previewOperators.length) return;
-              const operator = previewOperators[index % previewOperators.length];
-              const preview = createGlobeVideoPreview(operator, () => {
+            const showPreview = (operator: PublicOperator) => {
+              if (stopped || cancelled || hasFlattened) return;
+              map.jumpTo({ center: operator.coordinates, zoom: landingZoom() });
+              const preview = mountGlobePreview(map, operator, () => {
                 latest.current.onInteract();
                 flattenMap();
                 if (latest.current.allowSelection !== false) latest.current.onSelect([operator]);
               });
-              const marker = new MarkerClass({ element: preview.card, anchor: "bottom", offset: [0, -30] })
-                .setLngLat(operator.coordinates)
-                .addTo(map);
-              return { ...preview, marker, operator };
+              currentPreview = preview;
+              preview.reveal(latest.current.reducedMotion);
+              if (!latest.current.reducedMotion || previewOperators.length > 1) dwellTimer = window.setTimeout(advance, dwellDuration);
             };
 
-            const destroyPreview = (preview: GlobePreview | undefined) => {
-              if (!preview) return;
-              preview.conceal();
-              preview.dispose();
-              preview.marker.remove();
-            };
-
-            const clearTimers = () => {
-              if (revealTimer) window.clearTimeout(revealTimer);
-              if (cameraTimer) window.clearTimeout(cameraTimer);
-              if (cycleTimer) window.clearTimeout(cycleTimer);
-              revealTimer = undefined;
-              cameraTimer = undefined;
-              cycleTimer = undefined;
-            };
-
-            const scheduleAdvance = () => {
+            const advance = () => {
               if (stopped || cancelled || hasFlattened) return;
-              cameraTimer = window.setTimeout(() => {
-                if (stopped || hasFlattened || !queuedPreview) return;
-                map.easeTo({ center: queuedPreview.operator.coordinates, duration: latest.current.reducedMotion ? 0 : cameraLeadTime, easing: (time) => time < .5 ? 4 * time * time * time : 1 - Math.pow(-2 * time + 2, 3) / 2, essential: false });
-              }, Math.max(0, visibleSampleDuration - cameraLeadTime));
-              cycleTimer = window.setTimeout(() => {
-                if (stopped || hasFlattened || !queuedPreview) return;
-                const previous = currentPreview;
-                currentPreview = queuedPreview;
-                currentPreview.reveal();
-                previewIndex += 1;
-                queuedPreview = mountPreview(previewIndex + 1);
-                destroyPreview(previous);
-                scheduleAdvance();
-              }, visibleSampleDuration);
+              previewIndex = (previewIndex + 1) % previewOperators.length;
+              const to = previewOperators[previewIndex];
+              destroyPreview();
+              if (latest.current.reducedMotion) {
+                showPreview(to);
+                return;
+              }
+
+              const startingLongitude = map.getCenter().lng;
+              const longitudeDistance = ((startingLongitude - to.coordinates[0]) % 360 + 360) % 360 || 360;
+              const startingLatitude = map.getCenter().lat;
+              const duration = previewOperators.length === 1 ? fullTurnDuration : Math.max(3_200, Math.min(6_000, longitudeDistance * 17));
+              let startedAt = 0;
+              const rotate = (time: number) => {
+                if (stopped || cancelled || hasFlattened) return;
+                if (!startedAt) startedAt = time;
+                const progress = Math.min(1, (time - startedAt) / duration);
+                const eased = progress < .5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                map.setCenter([startingLongitude - longitudeDistance * eased, startingLatitude + (to.coordinates[1] - startingLatitude) * eased]);
+                if (progress < 1) rotationFrame = window.requestAnimationFrame(rotate);
+                else showPreview(to);
+              };
+              rotationFrame = window.requestAnimationFrame(rotate);
             };
 
             stopGlobePreview = () => {
               stopped = true;
-              previewTourActive = false;
-              clearTimers();
-              destroyPreview(currentPreview);
-              destroyPreview(queuedPreview);
-              currentPreview = undefined;
-              queuedPreview = undefined;
+              if (dwellTimer) window.clearTimeout(dwellTimer);
+              if (rotationFrame) window.cancelAnimationFrame(rotationFrame);
+              destroyPreview();
             };
-            currentPreview = mountPreview(0);
-            queuedPreview = mountPreview(1);
-            if (currentPreview) {
-              previewTourActive = true;
-              map.easeTo({ center: currentPreview.operator.coordinates, duration: 0, essential: false });
-              currentPreview.reveal();
-              scheduleAdvance();
+            const firstOperator = previewOperators[0];
+            if (hasIntroduced || latest.current.reducedMotion) {
+              showPreview(firstOperator);
+              return;
             }
-          }
 
-          if (initialProjection === "globe" && latest.current.theme === "light" && !latest.current.reducedMotion) {
-            const rotate = (time: number) => {
-              if (cancelled || hasFlattened) return;
-              if (lastRotationTime && !previewTourActive) {
-                const center = map.getCenter();
-                center.lng -= (time - lastRotationTime) * 0.0022;
-                map.setCenter(center);
-              }
-              lastRotationTime = time;
-              rotationFrame = window.requestAnimationFrame(rotate);
+            hasIntroduced = true;
+            const [longitude, latitude] = firstOperator.coordinates;
+            const startingLongitude = map.getCenter().lng;
+            const startedAt = performance.now();
+            const introDuration = 2_400;
+            const introduce = (time: number) => {
+              if (stopped || cancelled || hasFlattened) return;
+              const progress = Math.min(1, (time - startedAt) / introDuration);
+              const eased = progress * progress * (3 - 2 * progress);
+              map.setCenter([startingLongitude + (longitude - startingLongitude) * eased, latitude]);
+              if (progress < 1) rotationFrame = window.requestAnimationFrame(introduce);
+              else showPreview(firstOperator);
             };
-            rotationFrame = window.requestAnimationFrame(rotate);
-          }
+            rotationFrame = window.requestAnimationFrame(introduce);
+          };
 
           setReady(true);
           setError("");
           latest.current.onProjectionChange?.(initialProjection);
           latest.current.onReady({
             flyTo: (coordinates, zoom = 4.2, padding) => {
-              if (!flattenComplete) flattenMap({ center: coordinates, zoom, padding });
-              else map.flyTo({ center: coordinates, zoom, padding, pitch: 0, duration: latest.current.reducedMotion ? 0 : 1_350, easing: smoothStep, essential: false });
+              if (!flattenComplete) flattenMap({ center: coordinates, zoom, ...(padding ? { padding } : {}) });
+              else map.flyTo({ center: coordinates, zoom, ...(padding ? { padding } : {}), pitch: 0, duration: latest.current.reducedMotion ? 0 : 1_350, easing: smoothStep, essential: false });
             },
-            reset: () => map.flyTo({ center: [12, 25], zoom: latest.current.theme === "light" ? 2.8 : 1.7, pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 1400 }),
+            reset: () => map.flyTo({ center: [12, 25], zoom: landingZoom(), pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 1400 }),
             zoom: (amount) => {
               const zoom = map.getZoom() + amount;
               if (!flattenComplete) flattenMap({ center: [map.getCenter().lng, map.getCenter().lat], zoom });
@@ -469,7 +513,7 @@ export default function WorldMap(props: Props) {
         const smoothStep = (time: number) => time < .5 ? 4 * time * time * time : 1 - Math.pow(-2 * time + 2, 3) / 2;
         const flattenMap = (camera?: { center: [number, number]; zoom: number; padding?: { top: number; right?: number; bottom?: number; left?: number } }) => {
           if (flattenComplete) {
-            if (camera) map.flyTo({ ...camera, pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 1_350, easing: smoothStep, essential: false });
+            if (camera) map.flyTo({ center: camera.center, zoom: camera.zoom, ...(camera.padding ? { padding: camera.padding } : {}), pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 220, easing: smoothStep, essential: false });
             return;
           }
           if (hasFlattened) return;
@@ -486,22 +530,22 @@ export default function WorldMap(props: Props) {
               container.current.dataset.projection = "mercator";
               container.current.classList.remove("is-flattening");
               container.current.classList.add("is-settling");
-              projectionClassTimer = window.setTimeout(() => container.current?.classList.remove("is-settling"), 420);
+              projectionClassTimer = window.setTimeout(() => container.current?.classList.remove("is-settling"), 120);
             }
           };
           if (latest.current.reducedMotion) {
-            if (camera) map.jumpTo({ ...camera, pitch: 0, bearing: 0 });
+            map.jumpTo({ ...camera, padding: { ...emptyPadding, ...camera?.padding }, pitch: 0, bearing: 0 });
             finish();
             return;
           }
           container.current?.classList.add("is-flattening");
           if (container.current) container.current.dataset.projection = "transitioning";
           map.stop();
-          map.easeTo({ ...(camera || {}), pitch: 0, bearing: 0, duration: 920, easing: smoothStep, essential: false });
+          map.easeTo({ ...(camera ? { center: camera.center, zoom: camera.zoom } : {}), padding: { ...emptyPadding, ...camera?.padding }, pitch: 0, bearing: 0, duration: 180, easing: smoothStep, essential: false });
           const startedAt = performance.now();
           const animateProjection = (time: number) => {
             if (cancelled) return;
-            const progress = Math.min(1, (time - startedAt) / 920);
+            const progress = Math.min(1, (time - startedAt) / 180);
             const eased = smoothStep(progress);
             if (!token) map.setProjection({ type: ["vertical-perspective", "mercator", eased] });
             if (progress < 1) projectionFrame = window.requestAnimationFrame(animateProjection);
@@ -522,7 +566,7 @@ export default function WorldMap(props: Props) {
             container.current.classList.remove("is-flattening", "is-settling");
           }
           latest.current.onProjectionChange?.("globe");
-          map.easeTo({ center: [12, 25], zoom: latest.current.theme === "light" ? 2.8 : 1.7, pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 1_100, easing: smoothStep, essential: false });
+          map.easeTo({ center: [12, 25], zoom: landingZoom(), padding: globePadding(), pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 1_100, easing: smoothStep, essential: false });
         };
         const interact = () => { if (map.isStyleLoaded()) flattenMap(); latest.current.onInteract(); };
         map.getCanvas().addEventListener("pointerdown", interact);
@@ -560,6 +604,7 @@ export default function WorldMap(props: Props) {
 
     return () => {
       cancelled = true;
+      tourUpdateRef.current = null;
       if (rotationFrame) window.cancelAnimationFrame(rotationFrame);
       if (projectionFrame) window.cancelAnimationFrame(projectionFrame);
       if (projectionClassTimer) window.clearTimeout(projectionClassTimer);
@@ -571,6 +616,7 @@ export default function WorldMap(props: Props) {
   useEffect(() => {
     const source = mapRef.current?.getSource("operators") as GeoJSONSource | undefined;
     source?.setData(features(props.operators));
+    if (ready) tourUpdateRef.current?.();
   }, [props.operators, ready]);
 
   return (

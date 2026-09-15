@@ -89,7 +89,9 @@ CREATE TABLE IF NOT EXISTS supplier_applications (
   country TEXT,
   longitude DOUBLE PRECISION,
   latitude DOUBLE PRECISION,
-  hardware_pictures JSONB NOT NULL DEFAULT '[]',
+    hardware_pictures JSONB NOT NULL DEFAULT '[]',
+    office_images JSONB NOT NULL DEFAULT '[]',
+    official_documents JSONB NOT NULL DEFAULT '[]',
   linkedin_url TEXT,
   twitter_url TEXT,
   huggingface_url TEXT,
@@ -121,7 +123,9 @@ ALTER TABLE supplier_applications ALTER COLUMN city DROP NOT NULL;
 ALTER TABLE supplier_applications ALTER COLUMN country DROP NOT NULL;
 ALTER TABLE supplier_applications ALTER COLUMN longitude DROP NOT NULL;
 ALTER TABLE supplier_applications ALTER COLUMN latitude DROP NOT NULL;
-ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS profile_description TEXT NOT NULL DEFAULT '';
+  ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS profile_description TEXT NOT NULL DEFAULT '';
+  ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS office_images JSONB NOT NULL DEFAULT '[]';
+  ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS official_documents JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS capacity TEXT NOT NULL DEFAULT '';
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS capture_environments JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS provider_slug TEXT;

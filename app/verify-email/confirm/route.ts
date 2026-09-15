@@ -25,5 +25,5 @@ export async function GET(request: Request) {
   }
   await createSession(consumed.user_id);
   const user = await getUser();
-  redirect(user?.role === "supplier" ? "/onboarding" : user?.role === "admin" ? "/admin" : "/map");
+  redirect(user?.role === "supplier" ? "/supplier" : user?.role === "admin" ? "/admin" : "/map");
 }

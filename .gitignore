@@ -24,6 +24,7 @@
 /test-results/
 /playwright-report/
 /public/vendor/
+/generated/prisma/
 
 # misc
 .DS_Store

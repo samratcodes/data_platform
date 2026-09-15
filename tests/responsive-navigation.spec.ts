@@ -19,7 +19,7 @@ test.describe("responsive navigation QA", () => {
     await expect(rail).toHaveCSS("width", "48px");
     const [railBox, logoBox, directoryBox, controlsBox, metricsBox] = await Promise.all([
       rail.boundingBox(),
-      rail.locator(".brand svg").boundingBox(),
+      rail.locator(".brand img").boundingBox(),
       page.locator(".map-company-list").boundingBox(),
       page.locator(".landing-map-controls").boundingBox(),
       page.locator(".metrics-hud").boundingBox(),
@@ -80,18 +80,43 @@ test.describe("responsive navigation QA", () => {
     expect(directoryBox!.height).toBeLessThanOrEqual(230);
     expect(directoryBox!.y).toBeGreaterThan(500);
     expect(controlsBox!.y + controlsBox!.height).toBeLessThanOrEqual(directoryBox!.y - 8);
-    await expect(page.locator(".metrics-hud")).toHaveCSS("opacity", "0");
+    await expect(page.locator(".metrics-hud")).toHaveCSS("opacity", "1");
+    await expect(page.locator(".metrics-hud .metric-card")).toHaveCount(3);
     await assertNoHorizontalOverflow(page);
     await page.screenshot({ path: "test-results/qa-public-mobile.png", fullPage: true });
   });
 
   test("public supporting pages fit a narrow mobile viewport", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
-    for (const path of ["/login", "/signup", "/forgot-password", "/blog"]) {
+    for (const path of ["/login", "/signup/data-buyer", "/signup/data-company", "/forgot-password", "/blog"]) {
       await page.goto(path);
       await expect(page.locator("main:not(.system-loading)")).toBeVisible();
+      await expect(page.locator(".public-navigation-rail").getByRole("link", { name: "Register data company" })).toBeVisible();
       await assertNoHorizontalOverflow(page);
     }
+  });
+
+  test("public account links open the appropriate registration path", async ({ page }) => {
+    await page.goto("/signup/data-company");
+    await expect(page.getByRole("heading", { name: "Register your data company." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tell us about your company" })).toBeVisible();
+    await expect(page.locator(".company-wizard-progress")).toBeVisible();
+    await page.getByPlaceholder("Your company name").fill("Northstar Data");
+    await page.getByPlaceholder("What data do you provide, and how is it collected?").fill("We collect high-quality real-world video and speech data for AI teams.");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: "Add office images and official documents" })).toBeVisible();
+    await expect(page.locator(".office-image-picker")).toBeVisible();
+    await expect(page.locator(".official-document-picker")).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: "What data can you provide?" })).toBeVisible();
+    await page.getByRole("button", { name: /Egocentric video/ }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: "Where is your company located?" })).toBeVisible();
+
+    await page.goto("/signup/data-buyer");
+    await expect(page.getByRole("heading", { name: "Create your buyer account." })).toBeVisible();
+    await expect(page.getByText("Data buyer account", { exact: true })).toBeVisible();
+    await expect(page.locator('input[name="role"]')).toHaveValue("buyer");
   });
 
   test("admin rail expands and both approval pages remain responsive", async ({ page }) => {

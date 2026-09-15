@@ -8,19 +8,25 @@ import { useMemo, useRef, useState } from "react";
 import {
   Crosshair, Minus, Plus, ArrowRight, BadgeCheck,
   Bot, Building2, ChevronDown, Database, Factory, Globe2, Landmark,
-  LogIn, MapPin, PanelRightClose, Scale, Search, ShieldCheck, X, Activity, ArrowUpRight
+  Circle, LogIn, MapPin, PanelRightClose, Scale, Search, ShieldCheck, X, Activity, ArrowUpRight
 } from "lucide-react";
 import MapMetricsHud from "./MapMetricsHud";
 import MapLocationKey from "./MapLocationKey";
 import Modal from "./Modal";
 import PublicNavigationRail from "./PublicNavigationRail";
-import type { MapHandle, PublicOperator } from "./model";
+import type { MapHandle, MapProjection, PublicOperator } from "./model";
 import { useMotionPreference } from "./useMotionPreference";
 
 const WorldMap = dynamic(() => import("./WorldMap"), {
   ssr: false,
   loading: () => <div className="map-loading light"><Globe2 size={34}/><span>Drawing the global network…</span></div>
 });
+
+function VerificationMark({ level }: { level?: PublicOperator["verificationLevel"] }) {
+  if (level === "physical") return <BadgeCheck className="provider-verification is-physical" aria-label="Physically verified"/>;
+  if (level === "online") return <BadgeCheck className="provider-verification is-online" aria-label="Online verified"/>;
+  return <Circle className="provider-verification is-unverified" aria-label="Verification pending"/>;
+}
 
 export default function LandingExperience({ operators }: { operators: PublicOperator[] }) {
   const [query, setQuery] = useState("");
@@ -31,6 +37,7 @@ export default function LandingExperience({ operators }: { operators: PublicOper
   const [directoryMinimized, setDirectoryMinimized] = useState(false);
   const [gatedOperator, setGatedOperator] = useState<PublicOperator | null>(null);
   const [map, setMap] = useState<MapHandle | null>(null);
+  const [projection, setProjection] = useState<MapProjection>("globe");
   const mapSection = useRef<HTMLElement>(null);
   const reducedMotion = useMotionPreference();
 
@@ -52,7 +59,7 @@ export default function LandingExperience({ operators }: { operators: PublicOper
   const companyCount = new Set(operators.map((operator) => operator.company?.slug || operator.slug)).size;
   const modalityCount = modalities.length;
 
-  const clear = () => { setQuery(""); setCountry(""); setModality(""); setLocationType(""); map?.reset(); };
+  const clear = () => { setQuery(""); setCountry(""); setModality(""); setLocationType(""); if (projection === "mercator") map?.reset(); };
   const goToSearch = () => mapSection.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
 
   return (
@@ -61,14 +68,14 @@ export default function LandingExperience({ operators }: { operators: PublicOper
 
       <section ref={mapSection} className="landing-map-section" aria-label="Explore the map">
         <div className="landing-map-fixed">
-          <WorldMap theme="light" operators={filtered} onReady={setMap} onSelect={(items) => { if (items.length === 1) setGatedOperator(items[0]); }} onInteract={() => undefined} reducedMotion={reducedMotion}/>
+          <WorldMap theme="light" operators={filtered} onReady={setMap} onSelect={(items) => { if (items.length === 1) setGatedOperator(items[0]); }} onInteract={() => undefined} onProjectionChange={setProjection} reducedMotion={reducedMotion}/>
         </div>
 
         <MapMetricsHud companies={companyCount} facilities={facilityCount} modalityCount={modalityCount}/>
 
         <div className={`landing-filter-bar ${filtersOpen ? "is-open" : ""}`} aria-label="Map filters">
           <label className="landing-filter-search"><span>Search network</span><Search size={15}/><input aria-label="Search companies, cities, or data types" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); }} placeholder="Company, city, or data type"/>{query && <button aria-label="Clear network search" onClick={() => setQuery("")}><X size={13}/></button>}</label>
-          <label><span>Country</span><Globe2 size={15}/><select aria-label="Country" value={country} onChange={(event) => { setCountry(event.target.value); const target = operators.find((item) => item.country === event.target.value); if (target) map?.flyTo(target.coordinates, 4); else map?.reset(); }}><option value="">All countries</option>{countries.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={14}/></label>
+          <label><span>Country</span><Globe2 size={15}/><select aria-label="Country" value={country} onChange={(event) => { const selected = event.target.value; setCountry(selected); if (projection === "mercator") { const target = operators.find((item) => item.country === selected); if (target) map?.flyTo(target.coordinates, 4); else map?.reset(); } }}><option value="">All countries</option>{countries.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={14}/></label>
           <label><span>Data type</span><Database size={15}/><select aria-label="Data type" value={modality} onChange={(event) => setModality(event.target.value)}><option value="">All data types</option>{modalities.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={14}/></label>
           <label><span>Location type</span><Building2 size={15}/><select aria-label="Location type" value={locationType} onChange={(event) => setLocationType(event.target.value)}><option value="">All provider types</option><option value="Facility">Facility</option><option value="Data Company">Data company</option><option value="Robotics">Robotics</option></select><ChevronDown size={14}/></label>
           {activeFilters > 0 && <button className="landing-filter-clear" onClick={() => { clear(); setFiltersOpen(false); }}><X size={13}/> Clear filters</button>}
@@ -77,11 +84,11 @@ export default function LandingExperience({ operators }: { operators: PublicOper
         {query.trim() && <div className="landing-quick-results" aria-label="Search results"><div><span>Verified network</span><strong>{filtered.length} {filtered.length === 1 ? "match" : "matches"}</strong></div>{filtered.slice(0, 4).map((operator) => <button key={operator.slug} onClick={() => { setGatedOperator(operator); map?.flyTo(operator.coordinates, 8); }}><i className={operator.type === "Facility" ? "facility" : operator.type === "Robotics" ? "robotics" : "company"}>{operator.type === "Facility" ? <Factory/> : operator.type === "Robotics" ? <Bot/> : <Database/>}</i><span><strong>{operator.name}</strong><small>{operator.city}, {operator.country} · {operator.modalities.slice(0, 2).join(" + ")}</small></span><BadgeCheck size={16}/><ArrowUpRight size={15}/></button>)}{filtered.length === 0 && <div className="landing-quick-empty"><Search size={18}/><span><strong>No network match</strong><small>Try a city, company, or modality.</small></span></div>}</div>}
         <div className="landing-map-controls" aria-label="Map navigation"><button aria-label="Zoom in" disabled={!map} onClick={() => map?.zoom(1)}><Plus size={20}/></button><button aria-label="Zoom out" disabled={!map} onClick={() => map?.zoom(-1)}><Minus size={20}/></button><button aria-label="Reset map" disabled={!map} onClick={() => map?.reset()}><Crosshair size={20}/></button></div>
         <MapLocationKey/>
-        <div className="landing-map-help">Drag to explore · Select a location to view its profile</div>
+        <div className="landing-map-help">{projection === "globe" ? "Verified provider spotlight · Drag to explore" : "Drag to explore · Select a location to view its profile"}</div>
         <button className={`directory-toggle-button public-directory-toggle ${directoryMinimized ? "is-collapsed" : ""}`} onClick={() => setDirectoryMinimized((minimized) => !minimized)} aria-label={directoryMinimized ? `Open provider directory, ${filtered.length} providers` : "Minimize provider directory"} aria-expanded={!directoryMinimized} aria-controls="public-provider-directory"><PanelRightClose size={15}/><span className="directory-toggle-count" aria-hidden="true">{filtered.length}</span></button>
         <AnimatePresence initial={false}>{!directoryMinimized && <motion.aside id="public-provider-directory" className="map-company-list" aria-label="Verified provider directory" initial={reducedMotion ? false : { opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, x: 12 }} transition={{ duration: reducedMotion ? 0 : .22, ease: [.22, 1, .36, 1] }}>
           <div className="map-company-list-heading"><div><span>DATA DIRECTORY</span><strong>Verified providers</strong><small>{filtered.length} matching locations</small></div></div>
-          <div className="map-company-list-scroll">{filtered.map((operator) => <button key={operator.slug} onClick={() => { setGatedOperator(operator); map?.flyTo(operator.coordinates, 7); }}><span className="verified-status"><BadgeCheck size={11}/>{operator.verificationLevel === "physical" ? "Physical" : "Online"}</span><strong>{operator.name}</strong><small>{operator.city}, {operator.country}</small><em>{operator.modalities.slice(0, 2).join(" · ")}</em></button>)}</div>
+          <div className="map-company-list-scroll">{filtered.map((operator) => <button key={operator.slug} onClick={() => { setGatedOperator(operator); map?.flyTo(operator.coordinates, 7); }}><strong><VerificationMark level={operator.verificationLevel}/>{operator.name}</strong><small>{operator.city}, {operator.country}</small><em>{operator.modalities.slice(0, 2).join(" · ")}</em></button>)}</div>
         </motion.aside>}</AnimatePresence>
       </section>
 

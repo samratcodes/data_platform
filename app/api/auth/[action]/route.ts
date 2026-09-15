@@ -3,12 +3,22 @@ import { clearRateLimit, createSession, destroySession, getUser, hashPassword, r
 import { database, query } from "@/lib/database";
 import { appOrigin, consumeAuthToken, deliverQueuedEmail, queuePasswordChangedEmail, queueVerificationEmail, readAuthToken, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
 import { enqueueUserSheetSync } from "@/lib/integrations";
+import { isGoogleMapsUrl } from "@/lib/google-maps-place";
 import { validatePassword } from "@/lib/password";
-import { cleanSingleLine, readJsonObject, requestFingerprint } from "@/lib/security";
+import { cleanMultiline, cleanSingleLine, readJsonObject, requestFingerprint, safeHttpsUrl } from "@/lib/security";
 export const runtime = "nodejs";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const genericRecovery = "If an account exists for that email, we sent the next step.";
+const companyModalities = new Set(["Egocentric video", "Exocentric video", "Speech", "Images"]);
+const imageDataPattern = /^data:image\/(?:jpeg|png|webp);base64,([a-z0-9+/]+=*)$/i;
+
+function companyImage(value: unknown) {
+  if (typeof value !== "string" || value.length > 1_050_000) return null;
+  const match = imageDataPattern.exec(value);
+  if (!match) return null;
+  try { return Buffer.from(match[1], "base64").length <= 750_000 ? value : null; } catch { return null; }
+}
 
 export async function GET(_request: Request, context: { params: Promise<{ action: string }> }) {
   if ((await context.params).action !== "session") return Response.json({ error: "Not found" }, { status: 404 });
@@ -18,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ action
 export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {
   const { action } = await context.params;
   if (!["login", "signup", "logout", "resend-verification", "verify-email", "forgot-password", "reset-password"].includes(action)) return Response.json({ error: "Not found" }, { status: 404 });
-  const parsed = await readJsonObject(request, action === "logout" ? 1_024 : 8_192);
+  const parsed = await readJsonObject(request, action === "logout" ? 1_024 : action === "signup" ? 4_500_000 : 8_192);
   if (parsed.response) {
     if (action === "forgot-password") console.log("[password-reset] Skipped: request body could not be parsed or exceeded the size limit.");
     return parsed.response;
@@ -146,6 +156,23 @@ export async function POST(request: Request, context: { params: Promise<{ action
     if (passwordError) return Response.json({ error: passwordError }, { status: 400 });
     const role = body.role === "supplier" ? "supplier" : "buyer";
     if (role === "supplier" && /@(gmail|yahoo|hotmail|outlook|icloud|aol|protonmail|proton)\./i.test(email)) return Response.json({ error: "Suppliers must use a business email address." }, { status: 400 });
+    const companyRegistration = role === "supplier" && body.companyApplication === true;
+    const company = companyRegistration ? {
+      businessName: cleanSingleLine(body.businessName, 120),
+      description: cleanMultiline(body.description, 3_000),
+      website: safeHttpsUrl(body.websiteUrl),
+      mapsUrl: safeHttpsUrl(body.mapsUrl),
+      address: cleanSingleLine(body.physicalAddress, 240),
+      city: cleanSingleLine(body.city, 100),
+      country: cleanSingleLine(body.country, 100),
+      longitude: Number(body.longitude),
+      latitude: Number(body.latitude),
+      modalities: Array.isArray(body.modalities) ? body.modalities.filter((item): item is string => typeof item === "string" && companyModalities.has(item)).slice(0, 4) : [],
+      pictures: Array.isArray(body.hardwarePictures) ? body.hardwarePictures.slice(0, 4).map(companyImage).filter((item): item is string => Boolean(item)) : [],
+    } : null;
+    if (company && (!company.website || !company.mapsUrl || !isGoogleMapsUrl(company.mapsUrl) || company.businessName.length < 2 || company.description.length < 20 || company.address.length < 5 || company.city.length < 2 || company.country.length < 2 || !Number.isFinite(company.longitude) || !Number.isFinite(company.latitude) || company.longitude < -180 || company.longitude > 180 || company.latitude < -90 || company.latitude > 90 || company.modalities.length === 0)) {
+      return Response.json({ error: "Complete the company verification fields, including a Google Maps location and at least one data capability." }, { status: 400 });
+    }
     const id = randomUUID();
     const hash = await hashPassword(password);
     const client = await database().connect();
@@ -165,6 +192,14 @@ export async function POST(request: Request, context: { params: Promise<{ action
         RETURNING entity_id
       `, [id, name, email, hash, role, randomUUID()]);
       created = Boolean(result.rowCount);
+      if (created && company) {
+        await client.query(`
+          INSERT INTO supplier_applications (
+            id, user_id, application_kind, business_name, maps_url, physical_address, city, country,
+            longitude, latitude, hardware_pictures, provider_type, modalities, profile_description, website_url
+          ) VALUES ($1,$2,'company',$3,$4,$5,$6,$7,$8,$9,$10::jsonb,'Data Company',$11::jsonb,$12,$13)
+        `, [randomUUID(), id, company.businessName, company.mapsUrl, company.address, company.city, company.country, company.longitude, company.latitude, JSON.stringify(company.pictures), JSON.stringify(company.modalities), company.description, company.website]);
+      }
       if (created) verificationOutboxId = await queueVerificationEmail({ id, name, email }, appOrigin(request), client);
       await client.query("COMMIT");
     } catch (error) {

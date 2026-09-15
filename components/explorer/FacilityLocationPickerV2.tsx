@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { BadgeCheck, Crosshair, ImageIcon, LoaderCircle, MapPin, Search } from "lucide-react";
+import { BadgeCheck, Crosshair, ImageIcon, Link, LoaderCircle, MapPin, Search } from "lucide-react";
 import type { Map as GLMap, Marker as GLMarker, StyleSpecification } from "maplibre-gl";
 import type { PickedLocation } from "./FacilityLocationPicker";
 
@@ -34,6 +34,7 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
   const markerRef = useRef<GLMarker | null>(null);
   const onChangeRef = useRef(onChange);
   const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<"google" | "search">("google");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -128,7 +129,8 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
       return;
     }
     setBusy(true);
-    const importing = looksLikeGoogleMapsUrl(value);
+    const importing = mode === "google" || looksLikeGoogleMapsUrl(value);
+    if (mode === "google" && !looksLikeGoogleMapsUrl(value)) { setStatus("Paste a full Google Maps link to import this location."); return; }
     setStatus(importing ? "Importing place details and photos from Google Maps..." : "Finding matching places...");
     try {
       const response = await fetch(`/api/geocode?q=${encodeURIComponent(value)}`, { headers: { "X-FileMarket-Request": "1" } });
@@ -150,10 +152,14 @@ export default function FacilityLocationPickerV2({ longitude, latitude, onChange
   };
 
   return <div className="facility-picker">
+    <div className="facility-picker-modes" role="tablist" aria-label="Location entry method">
+      <button type="button" role="tab" aria-selected={mode === "google"} className={mode === "google" ? "active" : ""} onClick={() => { setMode("google"); setQuery(""); setResults([]); setStatus("Paste a Google Maps location link. The map stays available to review the imported pin."); }}><Link size={15}/><span>Google Maps link</span></button>
+      <button type="button" role="tab" aria-selected={mode === "search"} className={mode === "search" ? "active" : ""} onClick={() => { setMode("search"); setQuery(""); setResults([]); setStatus("Search for a place, then choose the result and fine-tune its pin on the map."); }}><Search size={15}/><span>Search on map</span></button>
+    </div>
     <div className="facility-picker-search">
       <Search size={16}/>
-      <input value={query} maxLength={2048} aria-label="Google Maps link or facility address" placeholder="Paste a Google Maps link or search an address" onChange={(event) => setQuery(event.target.value)} onPaste={(event) => { const value = event.clipboardData.getData("text").trim(); if (looksLikeGoogleMapsUrl(value)) { event.preventDefault(); setQuery(value); void searchLocation(value); } }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchLocation(); } }}/>
-      <button type="button" disabled={busy} onClick={() => void searchLocation()}>{busy ? <LoaderCircle className="spin" size={15}/> : looksLikeGoogleMapsUrl(query) ? "Import" : "Find places"}</button>
+      <input value={query} maxLength={2048} aria-label={mode === "google" ? "Google Maps location link" : "Search for a facility address"} placeholder={mode === "google" ? "Paste a Google Maps link" : "Search address, city, or landmark"} onChange={(event) => setQuery(event.target.value)} onPaste={(event) => { const value = event.clipboardData.getData("text").trim(); if (mode === "google" && looksLikeGoogleMapsUrl(value)) { event.preventDefault(); setQuery(value); void searchLocation(value); } }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchLocation(); } }}/>
+      <button type="button" disabled={busy} onClick={() => void searchLocation()}>{busy ? <LoaderCircle className="spin" size={15}/> : mode === "google" ? "Import" : "Find places"}</button>
     </div>
     {results.length > 0 && <div className="facility-picker-results" role="listbox" aria-label="Suggested matching places">
       {results.map((result) => <button type="button" role="option" aria-selected="false" key={`${result.longitude}/${result.latitude}`} onClick={() => choose(result)}><MapPin size={14}/><span>{result.label}</span></button>)}
