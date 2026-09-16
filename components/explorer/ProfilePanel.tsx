@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useMotionPreference } from "./useMotionPreference";
-import { ArrowUpRight, Bookmark, Check, ExternalLink, LoaderCircle, MapPin, MessageSquare, Minus, X } from "lucide-react";
+import { ArrowUpRight, Bookmark, Check, ExternalLink, LayoutGrid, LoaderCircle, MapPin, MessageSquare, Minus, X } from "lucide-react";
 import type { NodeData } from "../Landing/types";
 import { api, type PublicOperator, type Workspace } from "./model";
 import Modal from "./Modal";
@@ -31,6 +32,7 @@ export default function ProfilePanel({ operator, workspace, onWorkspace, onClose
       <div className="profile-cover"><Image src={operator.media.src} alt={operator.media.alt} fill sizes="400px" className="object-cover"/><div/><span className="sample-badge">{operator.type === "Facility" ? "CAPTURE FACILITY" : "DATA PROVIDER"}</span><div className="profile-window-actions"><button onClick={onMinimize} className="icon-button" aria-label="Minimize profile details" title="Minimize"><Minus size={17}/></button><button onClick={onClose} className="icon-button" aria-label="Close profile"><X size={18}/></button></div></div>
       <div className="profile-content"><div className="profile-title"><div><span className="eyebrow">{operator.city} · {operator.country}</span><h2>{operator.name}</h2></div><button className={`icon-button ${saved ? "is-saved" : ""}`} aria-label={saved ? "Unsave provider" : "Save provider"} aria-pressed={saved} disabled={busy} onClick={async () => { setBusy(true); try { onWorkspace(await api("/api/workspace", { method: "POST", body: JSON.stringify({ action: saved ? "unsave" : "save", slug: operator.slug }) })); } catch (reason) { onError((reason as Error).message); } finally { setBusy(false); } }}><Bookmark size={19} fill={saved ? "currentColor" : "none"}/></button></div>
         <div className="tag-row">{operator.modalities.map((item) => <span key={item}>{item}</span>)}</div>
+        <Link className="profile-view-link" href={`/operators/${operator.slug}`}><span><LayoutGrid size={15}/></span><span><strong>View profile</strong><small>Photos, data streams, and facility detail</small></span><ArrowUpRight size={16}/></Link>
         {error ? <p role="alert" className="form-error">{error}</p> : !profile ? <p className="loading-inline"><LoaderCircle className="spin" size={16}/> Loading full profile…</p> : <>
           <div className="profile-primary-actions"><ConciergeForm onError={onError}/><button className="primary-button request-button" disabled={requested} onClick={() => setRequest(true)}>{requested ? <><Check size={16}/> Data request sent</> : <>Request data <ArrowUpRight size={17}/></>}</button></div>
           <p className="profile-description">{profile.profile.description.replace("vetted ", "")}</p>
