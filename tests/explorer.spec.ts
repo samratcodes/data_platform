@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { query } from "../lib/database";
+import { query } from "../lib/db/client";
 
 const headers = { Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin" };
 

@@ -1,4 +1,4 @@
-import { getUser } from "@/lib/auth";
+import { getUser } from "@/lib/auth/session";
 
 export async function GET(_request: Request, context: { params: Promise<{ slug: string }> }) {
   if (!await getUser()) return Response.json({ error: "Log in to download samples." }, { status: 401 });

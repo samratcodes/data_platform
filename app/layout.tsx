@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import "./explorer.css";
+import "@/styles/globals.css";
+import "@/styles/app.css";
 
 export const metadata: Metadata = {
   title: { default: "map.filemarket | Verified AI Data Network", template: "%s | map.filemarket" },

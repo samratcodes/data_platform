@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, scrypt } from "node:crypto";
 import nextEnv from "@next/env";
 import pg from "pg";
-import { nodes } from "../components/Landing/realNodes.ts";
+import { nodes } from "../database/seed-providers.ts";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());

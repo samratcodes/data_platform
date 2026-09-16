@@ -1,4 +1,4 @@
-import { synchronizeGoogleSheets } from "@/lib/google-sheets-sync";
+import { synchronizeGoogleSheets } from "@/lib/integrations/google-sheets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

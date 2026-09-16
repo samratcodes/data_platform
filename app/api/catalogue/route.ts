@@ -1,5 +1,5 @@
-import { getUser } from "@/lib/auth";
-import { recordProfileView, verifiedOperator, verifiedOperators } from "@/lib/operators";
+import { getUser } from "@/lib/auth/session";
+import { recordProfileView, verifiedOperator, verifiedOperators } from "@/lib/data/operators";
 export async function GET(request: Request) {
   const user = await getUser();
   const slug = new URL(request.url).searchParams.get("slug");

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { emailVerificationRequired, getUser, isEmailVerified, rateLimited } from "@/lib/auth";
-import { query } from "@/lib/database";
-import { verifiedOperator } from "@/lib/operators";
+import { emailVerificationRequired, getUser, isEmailVerified } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/auth/rate-limit";
+import { query } from "@/lib/db/client";
+import { verifiedOperator } from "@/lib/data/operators";
 import { cleanMultiline, isSlug, readJsonObject } from "@/lib/security";
 
 export async function GET() {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { getUser } from "@/lib/auth";
-import { query } from "@/lib/database";
-import { readCompanyAsset, uploadCompanyAsset } from "@/lib/gcs";
+import { getUser } from "@/lib/auth/session";
+import { query } from "@/lib/db/client";
+import { readCompanyAsset, uploadCompanyAsset } from "@/lib/integrations/cloud-storage";
 
 export const runtime = "nodejs";
 

@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { clearRateLimit, createSession, destroySession, getUser, hashPassword, rateLimited, verifyPassword } from "@/lib/auth";
-import { database, query } from "@/lib/database";
-import { appOrigin, consumeAuthToken, deliverQueuedEmail, queuePasswordChangedEmail, queueVerificationEmail, readAuthToken, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
-import { enqueueUserSheetSync } from "@/lib/integrations";
-import { isGoogleMapsUrl } from "@/lib/google-maps-place";
-import { validatePassword } from "@/lib/password";
+import { clearRateLimit, rateLimited } from "@/lib/auth/rate-limit";
+import { createSession, destroySession, getUser } from "@/lib/auth/session";
+import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
+import { database, query } from "@/lib/db/client";
+import { appOrigin, consumeAuthToken, deliverQueuedEmail, queuePasswordChangedEmail, queueVerificationEmail, readAuthToken, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/integrations/email";
+import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
+import { isGoogleMapsUrl } from "@/lib/integrations/google-maps";
+import { validatePassword } from "@/lib/validation/password";
 import { cleanMultiline, cleanSingleLine, readJsonObject, requestFingerprint, safeHttpsUrl } from "@/lib/security";
 export const runtime = "nodejs";
 

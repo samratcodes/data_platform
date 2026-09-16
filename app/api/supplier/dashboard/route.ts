@@ -1,5 +1,6 @@
-import { emailVerificationRequired, getUser, isEmailVerified, rateLimited } from "@/lib/auth";
-import { database, query } from "@/lib/database";
+import { emailVerificationRequired, getUser, isEmailVerified } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/auth/rate-limit";
+import { database, query } from "@/lib/db/client";
 import { cleanMultiline, cleanSingleLine, isSlug, isUuid, readJsonObject, safeHttpsUrl } from "@/lib/security";
 
 export async function GET() {

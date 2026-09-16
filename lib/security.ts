@@ -48,7 +48,7 @@ export function requestFingerprint(request: Request) {
   return candidate.slice(0, 96);
 }
 
-export function isSameOriginMutation(request: Request) {
+function isSameOriginMutation(request: Request) {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite === "cross-site" || fetchSite === "same-site") return false;
   const target = new URL(request.url).origin;

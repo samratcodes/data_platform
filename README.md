@@ -83,10 +83,54 @@ Run `npm run db:maintain` on a daily schedule to remove expired sessions, expire
 
 ## Project structure
 
-- `app/` contains route files and API handlers. Each account-creation path has its own route folder so the URL, metadata, and role are unambiguous.
-- `components/explorer/` contains the interactive map, navigation rails, authentication form, and role-specific workspace UI.
-- `lib/` contains server-side data access, authentication, and catalogue helpers.
-- `tests/` contains Playwright coverage for the public, authentication, workspace, and responsive flows.
+```text
+proxy.ts                  Route protection (runs before every page request)
+app/
+  (public)/               /, /map, /blog: open to everyone
+  (auth)/                 /login, /signup/*, /forgot-password, /reset-password, /verify-email
+  (protected)/            /dashboard, /settings, /operators/[slug], /supplier, /onboarding, /admin/*
+  api/                    JSON route handlers (each one authorizes its own requests)
+  layout.tsx, error.tsx, not-found.tsx, loading.tsx
+components/
+  account/                Account settings
+  admin/                  Verification queue and concierge leads
+  auth/                   Login/signup form and password/email panels
+  map/                    Globe and map explorer, filters, map side panel
+  messaging/              Chat modal and inbox
+  navigation/             Buyer and public navigation rails
+  onboarding/             Data-company signup wizard, supplier verification, pickers
+  operators/              Provider profile page and photo gallery
+  supplier/               Supplier dashboard and buyer requests
+  ui/                     Shared primitives (Modal, Brand)
+  workspace/              Buyer workspace and concierge form
+hooks/                    Client hooks
+lib/
+  auth/                   Sessions, password hashing, rate limits, route rules, page guards
+  data/                   Database queries for the provider catalogue
+  db/                     PostgreSQL pool and retrying `query()` helper
+  integrations/           Email (Resend), Cloud Storage, Google Maps, Google Sheets sync
+  supplier/               Supplier application handler
+  validation/             Validation shared by browser and server
+  api-client.ts           Browser `fetch` wrapper for `/api` routes
+  security.ts             Input cleaning, origin checks, JSON body parsing
+types/                    Shared TypeScript types
+styles/                   globals.css (tokens) and app.css (feature styles, imported in order)
+database/                 schema.sql and seed data
+scripts/                  Database, email, and integration CLI tasks
+tests/                    Playwright end-to-end tests
+```
+
+Route groups in parentheses organize files without changing URLs.
+
+### Access control
+
+Access rules live in one place: `lib/auth/routes.ts`. Three layers use them:
+
+1. **`proxy.ts`** redirects visitors without a session cookie away from protected pages to `/login?next=…`. It only checks that the cookie exists and never calls the database, so it stays fast on every navigation and prefetch.
+2. **`requireAccess(pathname)`** (`lib/auth/guards.ts`) runs in each protected page. It checks the session against the database, then enforces roles: `/admin` is admin-only, and `/supplier` and `/onboarding` are for suppliers and admins. Users without the right role are sent to their own home page.
+3. **API routes** authorize every request themselves and return JSON `401`/`403` responses.
+
+Signed-in users who open `/login`, `/signup`, or `/forgot-password` are redirected to their workspace. `?next=` only accepts in-app paths, so it cannot be used as an open redirect. To protect a new page, add its prefix to `protectedRoutes` and call `requireAccess` in the page.
 
 ### Account creation routes
 
@@ -98,7 +142,7 @@ Run `npm run db:maintain` on a daily schedule to remove expired sessions, expire
 
 | Route | Purpose |
 | --- | --- |
-| `/` and `/map` | Public globe and authenticated map explorer |
+| `/` and `/map` | Public globe and map explorer |
 | `/signup/data-buyer` | Data-buyer account creation |
 | `/signup/data-company` | Data-company account and verification application |
 | `/signup` and `/login` | Buyer-signup redirect and sign-in |
@@ -122,13 +166,13 @@ The app uses MapLibre GL with local map assets and world boundaries. Mapbox can 
 NEXT_PUBLIC_MAPBOX_TOKEN=your_public_mapbox_token
 ```
 
-Restart the dev server after changing public environment variables. Restrict a Mapbox token to the deployment origin. Demonstration video and point-cloud samples are synthetic and clearly marked in the UI.
+Restart the dev server after changing public environment variables. Restrict a Mapbox token to the deployment origin.
 
 ## Verification
 
 ```bash
 npm run lint
-npx tsc --noEmit --incremental false
+npm run typecheck
 npm run build
 npx playwright install chromium
 npm run test:e2e

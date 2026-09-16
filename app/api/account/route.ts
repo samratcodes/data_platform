@@ -1,8 +1,10 @@
-import { createSession, destroySession, getUser, hashPassword, rateLimited, verifyPassword } from "@/lib/auth";
-import { database, query } from "@/lib/database";
-import { queuePasswordChangedEmail } from "@/lib/email";
-import { enqueueUserSheetSync } from "@/lib/integrations";
-import { validatePassword } from "@/lib/password";
+import { createSession, destroySession, getUser } from "@/lib/auth/session";
+import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
+import { rateLimited } from "@/lib/auth/rate-limit";
+import { database, query } from "@/lib/db/client";
+import { queuePasswordChangedEmail } from "@/lib/integrations/email";
+import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
+import { validatePassword } from "@/lib/validation/password";
 import { cleanSingleLine, readJsonObject } from "@/lib/security";
 
 export async function PATCH(request: Request) {

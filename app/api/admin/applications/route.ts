@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { getUser, rateLimited } from "@/lib/auth";
-import { database, query } from "@/lib/database";
-import { enqueueUserSheetSync } from "@/lib/integrations";
-import { resolveGoogleMapsPlace } from "@/lib/google-maps-place";
+import { getUser } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/auth/rate-limit";
+import { database, query } from "@/lib/db/client";
+import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
+import { resolveGoogleMapsPlace } from "@/lib/integrations/google-maps";
 import { cleanMultiline, cleanSingleLine, isUuid, readJsonObject } from "@/lib/security";
 
 const levels = new Set(["unverified", "online", "physical"]);

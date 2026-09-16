@@ -1,6 +1,6 @@
 import { MapPinOff } from "lucide-react";
 import Link from "next/link";
-import PublicNavigationRail from "@/components/explorer/PublicNavigationRail";
+import PublicNavigationRail from "@/components/navigation/PublicNavigationRail";
 
 export default function NotFoundPage() {
   return <main className="sourcing-app system-page">

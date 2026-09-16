@@ -1,5 +1,6 @@
-import { getUser, rateLimited } from "@/lib/auth";
-import { isGoogleMapsUrl, resolveGoogleMapsPlace } from "@/lib/google-maps-place";
+import { getUser } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/auth/rate-limit";
+import { isGoogleMapsUrl, resolveGoogleMapsPlace } from "@/lib/integrations/google-maps";
 import { cleanSingleLine, requestFingerprint } from "@/lib/security";
 
 type NominatimResult = {
