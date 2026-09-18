@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BadgeCheck, Bot, ChevronDown, ChevronRight, Crosshair, Database, Factory, Globe2, MapPin, Minus, PanelRightClose, PanelRightOpen, Plus, Search, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronRight, Crosshair, Globe2, MapPin, Minus, PanelRightClose, PanelRightOpen, Plus, Search, X } from "lucide-react";
 import BuyerFilterSidebar from "./BuyerFilterSidebar";
-import BuyerNavigationRail from "@/components/navigation/BuyerNavigationRail";
+import AppNavigationRail from "@/components/navigation/AppNavigationRail";
 import LandingExperience from "./LandingExperience";
 import MapLocationKey from "./MapLocationKey";
 import ProfilePanel from "./ProfilePanel";
@@ -13,6 +13,7 @@ import { useMotionPreference } from "@/hooks/useMotionPreference";
 import { api } from "@/lib/api-client";
 import type { MapHandle } from "./types";
 import type { PublicOperator, User, Workspace } from "@/types/app";
+import ProviderLogo from "@/components/ui/ProviderLogo";
 
 const WorldMap = dynamic(() => import("./WorldMap"), {
   ssr: false,
@@ -116,7 +117,7 @@ export default function ExplorerApp({ initialUser, operators }: { initialUser: U
   return <main className={`sourcing-app explorer authenticated buyer-map ${expandedSheet ? "sheet-expanded" : ""} ${directoryMinimized ? "directory-collapsed" : ""}`}>
     <WorldMap theme="light" operators={filtered} onReady={setMap} onSelect={handleMarker} onInteract={() => undefined} initialProjection="mercator" showPreviews={false} reducedMotion={!!reducedMotion}/>
     <div className="map-vignette"/>
-    <BuyerNavigationRail user={initialUser} active="map" searchActive={filtersOpen} onSearch={() => {
+    <AppNavigationRail user={initialUser} active="map" searchActive={filtersOpen} onSearch={() => {
       const opening = !filtersOpen;
       setFiltersOpen(opening);
       if (opening) window.setTimeout(() => document.querySelector<HTMLInputElement>(".buyer-filter-search input")?.focus(), 0);
@@ -150,7 +151,8 @@ export default function ExplorerApp({ initialUser, operators }: { initialUser: U
       <div className="results-summary"><span>{directoryOperators.length} partners</span><span><span className="live-dot"/> {cluster ? cluster[0].country : country || "Worldwide"}</span></div>
       <div className="directory-list">
         {directoryOperators.map((operator) => <button className="provider-card" key={operator.slug} onClick={() => openOperator(operator)}>
-          <div><h3>{operator.name}</h3><p><MapPin size={11}/>{operator.city}, {operator.country}</p><div className="provider-trust"><span><BadgeCheck size={11}/>{operator.verificationLevel === "physical" ? "Physically verified" : "Online verified"}</span><em>{operator.type}</em></div><div className="tag-row">{operator.modalities.slice(0, 2).map((item) => <span key={item}>{item}</span>)}</div></div>
+          <ProviderLogo cover={Boolean(operator.profile?.logoIsPhoto)} name={operator.name} logo={operator.profile?.logo} type={operator.type} size={40}/>
+          <div><h3>{operator.name}</h3>{operator.company && <p className="provider-company-line">by {operator.company.name}</p>}<p><MapPin size={11}/>{operator.city}, {operator.country}</p><div className="provider-trust"><span><BadgeCheck size={11}/>{operator.verificationLevel === "physical" ? "Physically verified" : "Online verified"}</span><em>{operator.type}</em></div><div className="tag-row">{operator.modalities.slice(0, 2).map((item) => <span key={item}>{item}</span>)}</div></div>
           <ChevronRight size={16}/>
         </button>)}
       </div>
@@ -159,7 +161,7 @@ export default function ExplorerApp({ initialUser, operators }: { initialUser: U
     </motion.aside>}</AnimatePresence>
 
     <AnimatePresence>{selected && !profileMinimized && <ProfilePanel key={selected.slug} operator={selected} workspace={workspace} onWorkspace={setWorkspace} onError={setError} onExpand={() => setExpandedSheet(true)} onMinimize={() => { setProfileMinimized(true); setExpandedSheet(false); }} onClose={() => { setSelected(null); setProfileMinimized(false); setExpandedSheet(false); }}/>}</AnimatePresence>
-    {selected && profileMinimized && <button className="glass profile-restore-tab" onClick={() => setProfileMinimized(false)}><span className={`provider-icon type-${selected.type.toLowerCase().replace(" ", "-")}`}>{selected.type === "Facility" ? <Factory size={18}/> : selected.type === "Robotics" ? <Bot size={18}/> : <Database size={18}/>}</span><span><small>SELECTED PARTNER</small><strong>{selected.name}</strong><em>{selected.city}, {selected.country}</em></span><PanelRightOpen size={17}/></button>}
+    {selected && profileMinimized && <button className="glass profile-restore-tab" onClick={() => setProfileMinimized(false)}><ProviderLogo cover={Boolean(selected.profile?.logoIsPhoto)} name={selected.name} logo={selected.profile?.logo} type={selected.type} size={40}/><span><small>SELECTED PARTNER</small><strong>{selected.name}</strong><em>{selected.city}, {selected.country}</em></span><PanelRightOpen size={17}/></button>}
     {selected && !profileMinimized && <button className="sheet-expand-button" onClick={() => setExpandedSheet(!expandedSheet)}>{expandedSheet ? "Collapse profile" : "Expand profile"}<ChevronDown size={14}/></button>}
 
     <div className="map-tools"><div className="glass"><button aria-label="Zoom in" onClick={() => map?.zoom(1)}><Plus size={18}/></button><button aria-label="Zoom out" onClick={() => map?.zoom(-1)}><Minus size={18}/></button></div><button className="glass" aria-label="Reset map view" onClick={() => map?.reset()}><Crosshair size={18}/></button></div>

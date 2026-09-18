@@ -30,9 +30,6 @@
 
 .buyer-workspace-page { min-height:100dvh; color:#173a33; background:linear-gradient(180deg,#f3f8f6,#fff 46%); }
 .buyer-workspace-shell { width:min(1180px,calc(100% - 130px)); margin-left:96px; padding:58px 0 72px; }
-.buyer-workspace-header { display:flex; align-items:flex-end; justify-content:space-between; gap:28px; }
-.buyer-workspace-header h1 { margin:8px 0 7px; color:#173a33; font-size:clamp(30px,4vw,48px); letter-spacing:-1.7px; }
-.buyer-workspace-header p { margin:0; color:#6b8079; font-size:15px; }
 .buyer-workspace-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:30px 0 18px; }
 .buyer-workspace-stats article { display:flex; min-height:96px; align-items:center; gap:14px; padding:20px; border:1px solid #dbe7e3; border-radius:14px; background:#fff; box-shadow:0 9px 28px #24483e0d; }
 .buyer-workspace-stats article > svg { width:22px; height:22px; padding:10px; box-sizing:content-box; border-radius:11px; color:#148169; background:#e8f7f2; }
@@ -86,7 +83,6 @@
   .buyer-map .map-tools,.buyer-map .explorer-footer { display:none; }
   .buyer-map .world-map .maplibregl-ctrl-bottom-right,.buyer-map .world-map .mapboxgl-ctrl-bottom-right { right:18px; bottom:10px; }
   .buyer-workspace-shell { width:calc(100% - 84px); margin-left:74px; padding:30px 10px 50px 0; }
-  .buyer-workspace-header { align-items:flex-start; flex-direction:column; }
   .buyer-workspace-stats,.buyer-workspace-grid { grid-template-columns:1fr; }
   .saved-providers-card,.messages-card,.access-requests-card,.concierge-card { grid-column:1; }
   .buyer-workspace-stats article { min-height:78px; }

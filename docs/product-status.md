@@ -22,7 +22,12 @@ The complete map.filemarket marketplace MVP is implemented: public discovery, se
 | `/onboarding` | Lets suppliers submit company, facility, map location, capability, and verification evidence. |
 | `/supplier` | Gives suppliers listing analytics, editable profiles, buyer requests, and conversations. |
 | `/settings` | Lets users update their name, rotate their password, and sign out every device. |
-| `/admin` | Gives administrators supplier reviews, verification controls, concierge leads, audit history, and integration status. |
+| `/admin` | Admin console overview: review queue counts, applications awaiting review, recent activity, and Google Sheets sync status. |
+| `/admin/companies` | Searchable, filterable table of data company applications. |
+| `/admin/facilities` | Searchable, filterable table of facility submissions. |
+| `/admin/applications/[id]` | Full review page for one application: applicant, profile, location, logo and images, documents, related records, history, and the approve/reject decision. |
+| `/admin/leads` | Table of buyer concierge briefs with inline status updates and a detail view. |
+| `/admin/activity` | Audit trail of every admin review decision and lead update. |
 | `/operators/[slug]` | Opens a direct authenticated profile for a specific verified provider. |
 | `/blog` | Presents concise map.filemarket sourcing and marketplace guidance. |
 | `not-found` | Provides a branded recovery page when a route or provider does not exist. |

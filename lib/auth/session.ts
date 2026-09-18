@@ -7,7 +7,7 @@ import { query } from "@/lib/db/client";
 import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "./cookie";
 import type { UserRole } from "./roles";
 
-export type SessionUser = { id: string; name: string; email: string; role: UserRole; emailVerifiedAt: string | null };
+export type SessionUser = { id: string; name: string; email: string; role: UserRole; emailVerifiedAt: string | null; companyLogo: string | null };
 
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -15,9 +15,21 @@ export const digest = (value: string) => createHash("sha256").update(value).dige
 export const getUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const result = await query<SessionUser>(`SELECT users.id, users.name, users.email, users.role, users.email_verified_at AS "emailVerifiedAt" FROM sessions
-    JOIN users ON users.id = sessions.user_id WHERE token_hash = $1 AND expires_at > $2`, [digest(token), Date.now()]);
-  return result.rows[0] ?? null;
+  const result = await query<Omit<SessionUser, "companyLogo"> & { logoKey: string | null; logoPublic: boolean | null }>(`
+    SELECT users.id, users.name, users.email, users.role, users.email_verified_at AS "emailVerifiedAt", company.logo_key AS "logoKey", company.approved AS "logoPublic"
+    FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    LEFT JOIN LATERAL (
+      SELECT company_logo->>'key' AS logo_key, status = 'approved' AS approved FROM supplier_applications
+      WHERE user_id = users.id AND application_kind = 'company'
+      ORDER BY submitted_at DESC LIMIT 1
+    ) company ON users.role = 'supplier'
+    WHERE token_hash = $1 AND expires_at > $2`, [digest(token), Date.now()]);
+  const row = result.rows[0];
+  if (!row) return null;
+  const { logoKey, logoPublic, ...user } = row;
+  // An approved logo is public, so it can be resized and cached instead of re-downloading the original.
+  return { ...user, companyLogo: logoKey ? `/api/company-assets?${logoPublic ? "public=1&" : ""}key=${encodeURIComponent(logoKey)}` : null };
 });
 
 export function isEmailVerified(user: SessionUser) {

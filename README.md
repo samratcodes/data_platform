@@ -93,29 +93,32 @@ app/
   layout.tsx, error.tsx, not-found.tsx, loading.tsx
 components/
   account/                Account settings
-  admin/                  Verification queue and concierge leads
+  admin/                  Admin console: overview, review tables, application review page, leads, activity log
   auth/                   Login/signup form and password/email panels
   map/                    Globe and map explorer, filters, map side panel
   messaging/              Chat modal and inbox
-  navigation/             Buyer and public navigation rails
+  media/                  Live logo and image manager for company and facility listings
+  navigation/             Workspace (all signed-in roles) and public navigation rails
   onboarding/             Data-company signup wizard, supplier verification, pickers
   operators/              Provider profile page and photo gallery
   supplier/               Supplier dashboard and buyer requests
-  ui/                     Shared primitives (Modal, Brand)
+  ui/                     Shared primitives (Modal, ConfirmDialog, PageHeader, StatusBadge, EmptyState, Brand)
   workspace/              Buyer workspace and concierge form
 hooks/                    Client hooks
 lib/
   auth/                   Sessions, password hashing, rate limits, route rules, page guards
+  admin/                  Admin-only database queries and response helpers
   data/                   Database queries for the provider catalogue
   db/                     PostgreSQL pool and retrying `query()` helper
   integrations/           Email (Resend), Cloud Storage, Google Maps, Google Sheets sync
-  supplier/               Supplier application handler
   validation/             Validation shared by browser and server
   api-client.ts           Browser `fetch` wrapper for `/api` routes
+  format.ts               Date, size, and asset URL formatting
   security.ts             Input cleaning, origin checks, JSON body parsing
 types/                    Shared TypeScript types
 styles/                   globals.css (tokens) and app.css (feature styles, imported in order)
 database/                 schema.sql and seed data
+docs/                     Product status and page inventory
 scripts/                  Database, email, and integration CLI tasks
 tests/                    Playwright end-to-end tests
 ```
@@ -152,7 +155,10 @@ Signed-in users who open `/login`, `/signup`, or `/forgot-password` are redirect
 | `/onboarding` | Supplier application form |
 | `/supplier` | Supplier listings, analytics, requests, and inbox |
 | `/settings` | Profile, password rotation, and global session logout |
-| `/admin` | Verification queue and concierge lead pipeline |
+| `/admin` | Admin console overview |
+| `/admin/companies`, `/admin/facilities` | Review queues for data companies and facilities |
+| `/admin/applications/[id]` | Full review page with the approve/reject decision |
+| `/admin/leads`, `/admin/activity` | Concierge lead pipeline and admin audit trail |
 | `/operators/[slug]` | Auth-gated provider deep link |
 | `/blog` | map.filemarket sourcing insights |
 

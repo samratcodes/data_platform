@@ -126,6 +126,8 @@ ALTER TABLE supplier_applications ALTER COLUMN latitude DROP NOT NULL;
   ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS profile_description TEXT NOT NULL DEFAULT '';
   ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS office_images JSONB NOT NULL DEFAULT '[]';
   ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS official_documents JSONB NOT NULL DEFAULT '[]';
+  ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS company_logo JSONB;
+  ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS company_focus TEXT NOT NULL DEFAULT 'collection';
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS capacity TEXT NOT NULL DEFAULT '';
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS capture_environments JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS provider_slug TEXT;
@@ -133,6 +135,8 @@ ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS sample_file_name TEXT
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS sample_mime_type TEXT;
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS sample_size_bytes INTEGER;
 ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS sample_data BYTEA;
+-- Factory category, workforce breakdown, typical tasks, and recording consent for facility applications.
+ALTER TABLE supplier_applications ADD COLUMN IF NOT EXISTS facility_details JSONB NOT NULL DEFAULT '{}';
 UPDATE supplier_applications
 SET provider_slug = TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(business_name), '[^a-z0-9]+', '-', 'g')) || '-' || LEFT(id::text, 6)
 WHERE application_kind = 'facility' AND provider_slug IS NULL;

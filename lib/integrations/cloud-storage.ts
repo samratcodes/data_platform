@@ -28,3 +28,9 @@ export async function readCompanyAsset(key: string) {
   const response = await auth.request<ArrayBuffer>({ method: "GET", url: `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(key)}?alt=media`, responseType: "arraybuffer" });
   return Buffer.from(response.data);
 }
+
+export async function deleteCompanyAsset(key: string) {
+  const { bucket } = configuration();
+  const auth = await client();
+  await auth.request({ method: "DELETE", url: `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(key)}` });
+}

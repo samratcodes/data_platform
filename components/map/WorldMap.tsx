@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map as GLMap, GeoJSONSource, StyleSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, Map as GLMap, GeoJSONSource, StyleSpecification } from "maplibre-gl";
 import type { FeatureCollection, Point } from "geojson";
 import { Globe2, RotateCw } from "lucide-react";
 import type { MapHandle, MapProjection } from "./types";
 import type { PublicOperator } from "@/types/app";
+import { providerInitials, providerTypeClass } from "@/components/ui/ProviderLogo";
+import { analyzeLogo } from "@/lib/logo-fit";
+import { resizedImage } from "@/lib/image";
 
 type Props = {
   operators: PublicOperator[];
@@ -48,37 +51,211 @@ const lightStyle: StyleSpecification = {
 // Keep the globe prominent without crowding the landing-page controls.
 const landingGlobeZoom = 2.45;
 
-const pinShell = (color: string, tint: string, glyph: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
-  <defs><filter id="shadow" x="-30%" y="-20%" width="160%" height="160%"><feDropShadow dx="0" dy="1.5" stdDeviation="1.4" flood-color="#16352f" flood-opacity=".2"/></filter></defs>
-  <path filter="url(#shadow)" d="M18 1.5C9.35 1.5 2.5 8.1 2.5 16.45 2.5 27.7 18 42 18 42s15.5-14.3 15.5-25.55C33.5 8.1 26.65 1.5 18 1.5Z" fill="#fff" stroke="${color}" stroke-width="1.65"/>
-  <circle cx="18" cy="16.5" r="10.4" fill="${tint}"/>
-  <g transform="translate(9 7.5) scale(.75)" fill="none" stroke="${color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>
-</svg>`;
-
-const iconFactory = pinShell(
-  "#059669",
-  "#ecfdf5",
-  '<path d="M3 21h18V10l-6 4v-4l-6 4V5H5a2 2 0 0 0-2 2Z"/><path d="M8 18h1M13 18h1M18 18h1"/>'
-);
-const iconCompany = pinShell(
-  "#2563eb",
-  "#eff6ff",
-  '<ellipse cx="12" cy="5" rx="8.5" ry="3"/><path d="M3.5 5v7c0 1.65 3.8 3 8.5 3s8.5-1.35 8.5-3V5M3.5 12v7c0 1.65 3.8 3 8.5 3s8.5-1.35 8.5-3v-7"/>'
-);
-const iconBot = pinShell(
-  "#7c3aed",
-  "#f5f3ff",
-  '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="3"/><path d="M2 14h2M20 14h2M15.5 13.5v1M8.5 13.5v1"/>'
-);
-
-const createMapIcon = (svgString: string): Promise<HTMLImageElement> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image(36, 44);
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
-  });
+type MarkerKind = PublicOperator["type"];
+const markerStyles: Record<MarkerKind, { light: string; deep: string; glyph: string }> = {
+  "Facility": { light: "#34d399", deep: "#047857", glyph: '<path d="M3 21h18V10l-6 4v-4l-6 4V5H5a2 2 0 0 0-2 2Z"/><path d="M8 18h1M13 18h1M18 18h1"/>' },
+  "Data Company": { light: "#60a5fa", deep: "#1d4ed8", glyph: '<ellipse cx="12" cy="5" rx="8.5" ry="3"/><path d="M3.5 5v7c0 1.65 3.8 3 8.5 3s8.5-1.35 8.5-3V5M3.5 12v7c0 1.65 3.8 3 8.5 3s8.5-1.35 8.5-3v-7"/>' },
+  "Robotics": { light: "#a78bfa", deep: "#6d28d9", glyph: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="3"/><path d="M2 14h2M20 14h2M15.5 13.5v1M8.5 13.5v1"/>' },
 };
+const styleFor = (kind: MarkerKind) => markerStyles[kind] ?? markerStyles["Data Company"];
+const pulseColor: ExpressionSpecification = ["match", ["get", "kind"], "Facility", "#10b981", "Robotics", "#8b5cf6", "#3b82f6"];
+const logoIconId = (operator: PublicOperator) => operator.profile?.logo ? `logo:${operator.type}:${operator.profile.logo}` : "";
+
+const loadImage = (src: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => resolve(img);
+  img.onerror = reject;
+  img.src = src;
+});
+
+const previewMediaSrc = (operator: PublicOperator) => operator.media.kind === "image" ? resizedImage(operator.media.src, 640) : operator.media.src;
+// Logos and profile photos can be multi-megabyte originals; badges only need a small copy.
+const badgeSrc = (logo: string) => resizedImage(logo, 128);
+
+// Warmed preview assets, shared across map instances so a remount never refetches.
+const previewAssets = new Map<string, Promise<void>>();
+
+/** Fetches and decodes an asset once; always resolves so a broken asset never blocks the tour. */
+function warmAsset(src: string, kind: "image" | "video") {
+  let pending = previewAssets.get(src);
+  if (pending) return pending;
+  pending = new Promise<void>((resolve) => {
+    if (kind === "video") {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.preload = "auto";
+      video.onloadeddata = video.onerror = () => {
+        video.onloadeddata = video.onerror = null;
+        resolve();
+      };
+      video.src = src;
+      return;
+    }
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => { void image.decode().catch(() => undefined).then(() => resolve()); };
+    image.onerror = () => resolve();
+    image.src = src;
+  });
+  previewAssets.set(src, pending);
+  return pending;
+}
+
+const warmPreview = (operator: PublicOperator) => Promise.all([
+  warmAsset(previewMediaSrc(operator), operator.media.kind === "video" ? "video" : "image"),
+  operator.profile?.logo ? warmAsset(badgeSrc(operator.profile.logo), "image") : undefined,
+]).then(() => undefined);
+
+/** Loads previews one after another in tour order, so the next stop is ready before the globe reaches it. */
+const queuePreviews = (operators: PublicOperator[]) => operators.reduce(
+  (queue, operator) => queue.then(() => warmPreview(operator)),
+  Promise.resolve()
+);
+
+const settleWithin = (promise: Promise<void>, ms: number) => new Promise<void>((resolve) => {
+  const timer = window.setTimeout(resolve, ms);
+  void promise.then(() => { window.clearTimeout(timer); resolve(); });
+});
+
+// Marker geometry in logical pixels; drawn at 2x for crisp edges.
+const MARKER = { width: 48, height: 62, scale: 2, centerX: 24, centerY: 23, ring: 19, face: 15.5, tip: 56 };
+
+/**
+ * Draws a floating badge marker: a glossy ring in the category color holding the company logo
+ * (or a category glyph), a stem down to the exact location, and a soft ground shadow for depth.
+ */
+async function drawMarker(kind: MarkerKind, logo?: string, photo = false) {
+  const style = styleFor(kind);
+  const { width, height, scale, centerX, centerY, ring, face, tip } = MARKER;
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas is unavailable.");
+  context.scale(scale, scale);
+
+  // Ground shadow.
+  const ground = context.createRadialGradient(centerX, tip, 0, centerX, tip, 9);
+  ground.addColorStop(0, "rgb(10 30 25 / 35%)");
+  ground.addColorStop(1, "rgb(10 30 25 / 0%)");
+  context.fillStyle = ground;
+  context.beginPath(); context.ellipse(centerX, tip, 9, 3.4, 0, 0, Math.PI * 2); context.fill();
+
+  // Stem down to an anchor dot on the exact location.
+  const stem = context.createLinearGradient(0, centerY + ring, 0, tip);
+  stem.addColorStop(0, style.deep);
+  stem.addColorStop(1, style.light);
+  context.strokeStyle = stem;
+  context.lineWidth = 2.4;
+  context.lineCap = "round";
+  context.beginPath(); context.moveTo(centerX, centerY + ring - 1); context.lineTo(centerX, tip - 1.5); context.stroke();
+  context.fillStyle = "#ffffff";
+  context.beginPath(); context.arc(centerX, tip, 2.6, 0, Math.PI * 2); context.fill();
+  context.fillStyle = style.deep;
+  context.beginPath(); context.arc(centerX, tip, 1.6, 0, Math.PI * 2); context.fill();
+
+  // Outer ring with drop shadow, then a white inner rim.
+  context.save();
+  context.shadowColor = "rgb(10 30 25 / 32%)";
+  context.shadowBlur = 6;
+  context.shadowOffsetY = 2.5;
+  const rim = context.createLinearGradient(0, centerY - ring, 0, centerY + ring);
+  rim.addColorStop(0, style.light);
+  rim.addColorStop(1, style.deep);
+  context.fillStyle = rim;
+  context.beginPath(); context.arc(centerX, centerY, ring, 0, Math.PI * 2); context.fill();
+  context.restore();
+  context.fillStyle = "#ffffff";
+  context.beginPath(); context.arc(centerX, centerY, face + 1.6, 0, Math.PI * 2); context.fill();
+
+  // Face: the logo when available, otherwise the category glyph on a gradient.
+  context.save();
+  context.beginPath(); context.arc(centerX, centerY, face, 0, Math.PI * 2); context.clip();
+  let drewLogo = false;
+  if (logo) {
+    try {
+      const image = await loadImage(badgeSrc(logo));
+      // Photos always fill the face; logos follow their own shape.
+      const fit = photo ? { ...analyzeLogo(image), cover: true } : analyzeLogo(image);
+      context.fillStyle = fit.background;
+      context.fillRect(centerX - face, centerY - face, face * 2, face * 2);
+      const box = fit.cover ? face * 2 : face * 1.45;
+      const ratio = image.naturalWidth / image.naturalHeight;
+      // Cover fills the circle; contain keeps wide wordmarks whole.
+      const drawWidth = fit.cover ? Math.max(box, box * ratio) : Math.min(box, box * ratio);
+      const drawHeight = drawWidth / ratio;
+      context.drawImage(image, centerX - drawWidth / 2, centerY - drawHeight / 2, drawWidth, drawHeight);
+      drewLogo = true;
+    } catch { /* Fall through to the glyph. */ }
+  }
+  if (!drewLogo) {
+    const background = context.createLinearGradient(0, centerY - face, 0, centerY + face);
+    background.addColorStop(0, style.light);
+    background.addColorStop(1, style.deep);
+    context.fillStyle = background;
+    context.fillRect(centerX - face, centerY - face, face * 2, face * 2);
+    const glyph = await loadImage("data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${style.glyph}</svg>`));
+    context.drawImage(glyph, centerX - 9, centerY - 9, 18, 18);
+  }
+  // Glossy highlight across the top of the face.
+  const gloss = context.createLinearGradient(0, centerY - face, 0, centerY);
+  gloss.addColorStop(0, "rgb(255 255 255 / 30%)");
+  gloss.addColorStop(1, "rgb(255 255 255 / 0%)");
+  context.fillStyle = gloss;
+  context.beginPath(); context.ellipse(centerX, centerY - face * .45, face * .85, face * .55, 0, 0, Math.PI * 2); context.fill();
+  context.restore();
+
+  context.strokeStyle = "rgb(0 0 0 / 8%)";
+  context.lineWidth = .8;
+  context.beginPath(); context.arc(centerX, centerY, face, 0, Math.PI * 2); context.stroke();
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/** Registers a branded marker for every operator with a logo, then re-renders the markers. */
+async function addLogoPins(map: GLMap, operators: PublicOperator[]) {
+  const pending = new Map<string, PublicOperator>();
+  operators.forEach((operator) => {
+    const id = logoIconId(operator);
+    if (id && !map.hasImage(id)) pending.set(id, operator);
+  });
+  if (!pending.size) return;
+  const results = await Promise.allSettled([...pending].map(async ([id, operator]) => {
+    const image = await drawMarker(operator.type, operator.profile.logo!, Boolean(operator.profile.logoIsPhoto));
+    if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: MARKER.scale });
+  }));
+  // Markers without a loadable logo keep their category glyph.
+  if (results.some((result) => result.status === "fulfilled")) {
+    (map.getSource("operators") as GeoJSONSource | undefined)?.setData(features(operators));
+  }
+}
+
+/** DOM twin of the `ProviderLogo` component for the imperatively built globe preview. */
+function createLogoDisc(operator: PublicOperator) {
+  // A div, so the ".globe-video-details > span" action styles never apply to it.
+  const disc = document.createElement("div");
+  disc.className = `provider-logo-disc globe-video-logo-disc ${providerTypeClass(operator.type)}`;
+  disc.setAttribute("aria-hidden", "true");
+  const fallback = () => {
+    disc.classList.add("is-fallback");
+    disc.replaceChildren(providerInitials(operator.name));
+  };
+  if (!operator.profile?.logo) { fallback(); return disc; }
+  const inner = document.createElement("span");
+  inner.className = "provider-logo-disc-inner";
+  const logo = document.createElement("img");
+  logo.src = badgeSrc(operator.profile.logo);
+  logo.alt = "";
+  logo.onerror = fallback;
+  logo.onload = () => {
+    const fit = analyzeLogo(logo);
+    disc.classList.add(fit.cover || operator.profile.logoIsPhoto ? "is-cover" : "is-contain");
+    disc.style.background = fit.background;
+  };
+  inner.append(logo);
+  disc.append(inner);
+  return disc;
+}
 
 function createGlobeVideoPreview(
   operator: PublicOperator,
@@ -96,7 +273,7 @@ function createGlobeVideoPreview(
   const heading = document.createElement("div");
   heading.className = "globe-video-heading";
   const category = document.createElement("span");
-  category.textContent = operator.type === "Facility" ? "DATA FACILITY" : operator.type === "Robotics" ? "ROBOTICS PROVIDER" : "DATA COMPANY";
+  category.textContent = operator.profile?.facility ? `FACILITY · ${operator.profile.facility.categoryLabel.toUpperCase()}` : operator.type === "Facility" ? "DATA FACILITY" : operator.type === "Robotics" ? "ROBOTICS PROVIDER" : "DATA COMPANY";
   const verified = document.createElement("span");
   verified.textContent = "VERIFIED";
   heading.append(category, verified);
@@ -117,18 +294,17 @@ function createGlobeVideoPreview(
     media.appendChild(video);
   } else {
     const image = document.createElement("img");
-    image.src = operator.media.src.startsWith("https://")
-      ? `/_next/image?url=${encodeURIComponent(operator.media.src)}&w=640&q=75`
-      : operator.media.src;
     image.alt = operator.media.alt;
     image.loading = "eager";
+    image.decoding = "async";
+    // Fades in if the image arrives after the card; preloaded images are complete immediately.
+    const markLoaded = () => image.classList.add("is-loaded");
+    image.onload = markLoaded;
+    image.onerror = markLoaded;
+    image.src = previewMediaSrc(operator);
+    if (image.complete) markLoaded();
     media.appendChild(image);
   }
-
-  const live = document.createElement("span");
-  live.className = "globe-video-live";
-  live.textContent = operator.media.label.toUpperCase();
-  media.appendChild(live);
 
   const details = document.createElement("div");
   details.className = "globe-video-details";
@@ -138,10 +314,16 @@ function createGlobeVideoPreview(
   const place = document.createElement("small");
   place.textContent = `${operator.city}, ${operator.country}`;
   copy.append(name, place);
+  if (operator.company) {
+    const owner = document.createElement("small");
+    owner.className = "globe-video-company";
+    owner.textContent = `by ${operator.company.name}`;
+    copy.append(owner);
+  }
   const action = document.createElement("span");
   action.setAttribute("aria-hidden", "true");
   action.textContent = "View profile ↗";
-  details.append(copy, action);
+  details.append(createLogoDisc(operator), copy, action);
 
   const progress = document.createElement("i");
   progress.className = "globe-video-progress";
@@ -236,9 +418,9 @@ function compactMarkerOffset(index: number, count: number): [number, number] {
   const firstIndexInRow = row * 3;
   const itemsInRow = Math.min(3, count - firstIndexInRow);
   const indexInRow = index - firstIndexInRow;
-  const horizontalGap = 31;
+  const horizontalGap = 42;
 
-  return [(indexInRow - (itemsInRow - 1) / 2) * horizontalGap, -row * 36];
+  return [(indexInRow - (itemsInRow - 1) / 2) * horizontalGap, -row * 52];
 }
 
 function features(operators: PublicOperator[]): FeatureCollection<Point> {
@@ -261,7 +443,7 @@ function features(operators: PublicOperator[]): FeatureCollection<Point> {
 
       return {
         type: "Feature",
-        properties: { slug: operator.slug, name: operator.name, city: operator.city, kind: operator.type, offset: compactMarkerOffset(samePlaceIndex, count) },
+        properties: { slug: operator.slug, name: operator.name, city: operator.city, kind: operator.type, logoIcon: logoIconId(operator), offset: compactMarkerOffset(samePlaceIndex, count) },
         geometry: { type: "Point", coordinates }
       };
     })
@@ -284,6 +466,7 @@ export default function WorldMap(props: Props) {
     let cancelled = false;
     let cleanup: (() => void) | undefined;
     let rotationFrame: number | undefined;
+    let pulseFrame: number | undefined;
     let projectionFrame: number | undefined;
     let projectionClassTimer: number | undefined;
     let stopGlobePreview: (() => void) | undefined;
@@ -297,6 +480,8 @@ export default function WorldMap(props: Props) {
     const openingCenter: [number, number] = openingOperator
       ? [openingOperator.coordinates[0] + 70, openingOperator.coordinates[1]]
       : [12, 25];
+    // Start fetching tour media now, in parallel with the map bundle and style, not when the first popup mounts.
+    if (openingOperator && latest.current.showPreviews !== false) void queuePreviews(tourOperators(latest.current.operators));
 
     async function initialize() {
       try {
@@ -333,42 +518,50 @@ export default function WorldMap(props: Props) {
           if (token) (map as unknown as { setProjection: (projection: string) => void }).setProjection(initialProjection);
           else map.setProjection({ type: initialProjection });
 
-          // Load Custom High-Res Icons
+          // Category markers, used until (or unless) a company logo loads.
           try {
-            const [imgFactory, imgCompany, imgBot] = await Promise.all([
-              createMapIcon(iconFactory),
-              createMapIcon(iconCompany),
-              createMapIcon(iconBot)
-            ]);
-
-            if (!map.hasImage("icon-factory")) map.addImage("icon-factory", imgFactory);
-            if (!map.hasImage("icon-company")) map.addImage("icon-company", imgCompany);
-            if (!map.hasImage("icon-bot")) map.addImage("icon-bot", imgBot);
+            await Promise.all((Object.keys(markerStyles) as MarkerKind[]).map(async (kind) => {
+              const id = `marker-${kind}`;
+              const image = await drawMarker(kind);
+              if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: MARKER.scale });
+            }));
           } catch (e) {
             console.error("Failed to load map icons", e);
           }
 
           map.addSource("operators", { type: "geojson", data: features(latest.current.operators) });
+          // Ripples lie flat on the map surface, so on the globe they wrap around the Earth.
           map.addLayer({
-            id: "location-halo",
+            id: "location-pulse",
             type: "circle",
             source: "operators",
             paint: {
-              "circle-radius": 7,
-              "circle-color": "#ffffff",
-              "circle-stroke-color": "#c8d9d4",
-              "circle-stroke-width": 1
+              "circle-radius": 6,
+              "circle-color": pulseColor,
+              "circle-opacity": .22,
+              "circle-stroke-color": pulseColor,
+              "circle-stroke-width": 1.2,
+              "circle-stroke-opacity": .5,
+              "circle-pitch-alignment": "map",
+              "circle-blur": .25
             }
           });
-          map.addLayer({
-            id: "location-point",
-            type: "circle",
-            source: "operators",
-            paint: {
-              "circle-radius": 3.2,
-              "circle-color": "#0f766e"
-            }
-          });
+          if (!latest.current.reducedMotion) {
+            const pulseDuration = 2_400;
+            let lastPulse = 0;
+            const pulse = (time: number) => {
+              if (cancelled || mapRef.current !== map) return;
+              pulseFrame = window.requestAnimationFrame(pulse);
+              if (time - lastPulse < 33 || !map.getLayer("location-pulse")) return;
+              lastPulse = time;
+              const progress = (time % pulseDuration) / pulseDuration;
+              const eased = 1 - Math.pow(1 - progress, 3);
+              map.setPaintProperty("location-pulse", "circle-radius", 4 + eased * 20);
+              map.setPaintProperty("location-pulse", "circle-opacity", .28 * (1 - progress));
+              map.setPaintProperty("location-pulse", "circle-stroke-opacity", .7 * (1 - progress));
+            };
+            pulseFrame = window.requestAnimationFrame(pulse);
+          }
           // Transparent hit targets keep the colored line icons easy to select.
           map.addLayer({
             id: "marker-hit-area",
@@ -386,19 +579,21 @@ export default function WorldMap(props: Props) {
             type: "symbol",
             source: "operators",
             layout: {
+              // Branded logo pins take priority; the category icon shows until (or unless) the logo loads.
               "icon-image": [
-                "match", ["get", "kind"],
-                "Facility", "icon-factory",
-                "Data Company", "icon-company",
-                "Robotics", "icon-bot",
-                "icon-company"
+                "coalesce",
+                ["image", ["get", "logoIcon"]],
+                ["image", ["concat", "marker-", ["get", "kind"]]],
+                ["image", "marker-Data Company"]
               ],
-              "icon-size": ["interpolate", ["linear"], ["zoom"], 1, 0.72, 5, 0.82, 10, 0.92],
+              "icon-size": ["interpolate", ["linear"], ["zoom"], 1, 0.9, 5, 0.96, 10, 1.05],
               "icon-anchor": "bottom",
               "icon-offset": ["get", "offset"],
               "icon-allow-overlap": true
             }
           });
+
+          void addLogoPins(map, latest.current.operators);
 
           tourUpdateRef.current = () => {
             stopGlobePreview?.();
@@ -406,6 +601,7 @@ export default function WorldMap(props: Props) {
 
             const previewOperators = tourOperators(latest.current.operators);
             if (!previewOperators.length) return;
+            void queuePreviews(previewOperators);
             let previewIndex = 0;
             let currentPreview: GlobePreview | undefined;
             let dwellTimer: number | undefined;
@@ -430,8 +626,12 @@ export default function WorldMap(props: Props) {
                 if (latest.current.allowSelection !== false) latest.current.onSelect([operator]);
               });
               currentPreview = preview;
-              preview.reveal(latest.current.reducedMotion);
-              if (!latest.current.reducedMotion || previewOperators.length > 1) dwellTimer = window.setTimeout(advance, dwellDuration);
+              // Reveal once the media is decoded (usually instant thanks to the queue), capped so a slow asset never stalls the tour.
+              void settleWithin(warmPreview(operator), 1_200).then(() => {
+                if (stopped || cancelled || hasFlattened || currentPreview !== preview) return;
+                preview.reveal(latest.current.reducedMotion);
+                if (!latest.current.reducedMotion || previewOperators.length > 1) dwellTimer = window.setTimeout(advance, dwellDuration);
+              });
             };
 
             const advance = () => {
@@ -607,6 +807,7 @@ export default function WorldMap(props: Props) {
       cancelled = true;
       tourUpdateRef.current = null;
       if (rotationFrame) window.cancelAnimationFrame(rotationFrame);
+      if (pulseFrame) window.cancelAnimationFrame(pulseFrame);
       if (projectionFrame) window.cancelAnimationFrame(projectionFrame);
       if (projectionClassTimer) window.clearTimeout(projectionClassTimer);
       stopGlobePreview?.();
@@ -617,6 +818,7 @@ export default function WorldMap(props: Props) {
   useEffect(() => {
     const source = mapRef.current?.getSource("operators") as GeoJSONSource | undefined;
     source?.setData(features(props.operators));
+    if (ready && mapRef.current) void addLogoPins(mapRef.current, props.operators);
     if (ready) tourUpdateRef.current?.();
   }, [props.operators, ready]);
 

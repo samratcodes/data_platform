@@ -1,0 +1,188 @@
+/* Company logo picker and the supplier profile editor that mirrors the signup wizard. */
+
+.company-logo-picker { display:flex; align-items:center; gap:16px; padding:16px 18px; border:1px dashed #a9ccbf; border-radius:14px; background:#f8fcfa; transition:border-color .18s ease,background-color .18s ease; }
+.company-logo-picker.is-dragging { border-color:#16846a; background:#eaf7f2; }
+.company-logo-preview { position:relative; display:grid; width:88px; height:88px; flex:none; place-items:center; overflow:hidden; border:1px solid #dce9e3; border-radius:18px; color:#9bb3aa; background:#fff; }
+.company-logo-preview img { object-fit:contain; padding:6px; }
+.company-logo-preview > svg { width:34px; height:34px; }
+.company-logo-copy { display:grid; min-width:0; gap:4px; }
+.company-logo-copy strong { color:#29483f; font-size:14px; }
+.company-logo-copy em { margin-left:5px; color:#789087; font-size:11px; font-style:normal; font-weight:500; }
+.company-logo-copy small { overflow:hidden; color:#698279; font-size:12px; line-height:1.45; text-overflow:ellipsis; }
+.company-logo-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.company-logo-upload,.company-logo-remove { display:inline-flex; min-height:36px; align-items:center; gap:7px; padding:0 13px; border-radius:9px; font-size:12px; font-weight:750; cursor:pointer; }
+.company-logo-upload { border:1px solid #b7d9ca; color:#087a60; background:#eaf7f2; }
+.company-logo-upload:hover { background:#dff2e9; }
+.company-logo-upload input { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; opacity:0; }
+.company-logo-upload:focus-within { outline:2px solid #16846a; outline-offset:2px; }
+.company-logo-remove { border:1px solid #efd8d4; color:#ac554e; background:#fff; }
+.company-logo-remove:hover { background:#fff4f3; }
+
+.company-profile-editor { overflow:hidden; margin-top:18px; border:1px solid #e1ebe7; border-radius:16px; background:#fff; scroll-margin-top:24px; }
+.company-profile-editor .company-wizard-form { padding:clamp(20px,3vw,32px) clamp(18px,3vw,32px) 18px; }
+.company-profile-editor .company-wizard-form > header > span { color:#16846a; }
+.company-profile-editor .company-wizard-form > header h2 { margin:6px 0; color:#29483f; font-size:clamp(21px,2vw,27px); }
+.company-profile-editor .company-wizard-content { overflow:visible; margin-top:16px; padding-bottom:6px; }
+.company-profile-editor .company-wizard-fields { gap:10px; }
+.company-profile-editor .wizard-input-card,.company-profile-editor .wizard-location-picker { padding:10px 13px; border-color:#e1ebe7; background:#fbfcfc; box-shadow:none; }
+.company-profile-editor .wizard-input-card:focus-within { border-color:#a9d5c7; box-shadow:0 0 0 3px #eaf7f2; transform:none; }
+.company-profile-editor .wizard-input-card.has-error,.company-profile-editor .wizard-input-card.has-error:focus-within,.company-profile-editor .wizard-location-picker.has-error { border-color:#d37878; background:#fffafa; box-shadow:0 0 0 3px #fce9e8; }
+.company-profile-editor .wizard-input-card > span small { margin-left:4px; color:#8aa097; font-weight:500; }
+.company-profile-editor .wizard-choice-grid button { min-height:108px; }
+.company-profile-editor .wizard-capability-grid button { min-height:88px; }
+.company-profile-editor .wizard-location-picker .facility-picker-map { height:220px; }
+.company-profile-editor .company-wizard-form footer { margin-top:10px; padding-top:14px; border-color:#e1ebe7; }
+.company-profile-editor .company-wizard-progress { gap:8px; min-width:min(360px,45%); }
+.company-profile-editor .company-wizard-progress > span { color:#627b72; }
+.company-profile-editor .company-wizard-progress > div { gap:9px; }
+.company-profile-editor .company-wizard-progress i { width:auto; height:10px; flex:1; background:#e4ece9; }
+.company-profile-editor .company-wizard-progress i.active { background:#16846a; }
+.company-profile-editor .company-wizard-progress small { color:#16846a; }
+.company-profile-editor .wizard-next { border:1px solid #c7e4da; color:#087a60; background:#eaf7f2; box-shadow:none; }
+.company-profile-editor .wizard-next:hover { border-color:#abd5c7; background:#e2f4ed; box-shadow:none; filter:none; }
+.company-sample-card { display:flex; align-items:center; gap:12px; cursor:pointer; }
+.company-sample-card .wizard-upload-icon { flex:none; }
+.company-sample-card > span:last-of-type { display:grid; min-width:0; gap:4px; }
+.company-sample-card strong { color:#29483f; font-size:13px; overflow-wrap:anywhere; }
+.company-sample-card em { margin-left:5px; color:#789087; font-size:11px; font-style:normal; font-weight:500; }
+.company-sample-card small { color:#698279; font-size:12px; }
+.company-sample-card input { display:none; }
+
+@media(max-width:980px) {
+  .company-profile-editor .wizard-field-grid,.company-profile-editor .wizard-choice-grid { grid-template-columns:1fr; }
+  .company-profile-editor .wizard-choice-grid button { min-height:76px; }
+}
+@media(max-width:760px) {
+  .company-profile-editor .wizard-capability-grid { grid-template-columns:1fr; }
+  .company-profile-editor .company-wizard-form footer { align-items:stretch; flex-direction:column; }
+  .company-profile-editor .company-wizard-progress { width:100%; min-width:0; }
+  .company-profile-editor .company-wizard-actions { width:100%; }
+  .company-profile-editor .company-wizard-actions button { flex:1; }
+}
+@media(max-width:420px) {
+  .company-logo-picker { align-items:flex-start; flex-direction:column; }
+}
+
+/* Approved company logos on public provider profiles. */
+.provider-logo { position:relative; display:block; width:48px; height:48px; flex:none; overflow:hidden; border:1px solid #dce9e3; border-radius:12px; background:#fff; }
+.provider-logo img { object-fit:contain; padding:4px; }
+.profile-title > .provider-logo { margin-top:4px; }
+.profile-title:has(> .provider-logo) > div:nth-child(2) { flex:1; min-width:0; }
+.opx-hero-logo { width:64px; height:64px; margin-top:18px; border-color:#ffffff40; border-radius:16px; }
+
+/* Live media manager for company and facility listings. */
+.media-manager { display:grid; gap:14px; margin-top:18px; padding:18px; border:1px solid #dbe9e3; border-radius:16px; background:#fbfdfc; }
+.company-wizard-fields .media-manager { margin-top:0; }
+.media-manager-heading { display:flex; align-items:center; gap:12px; }
+.media-manager-heading .wizard-upload-icon { flex:none; }
+.media-manager-heading h3 { margin:0; color:#29483f; font-size:16px; }
+.media-manager-heading p { margin:3px 0 0; color:#6b8179; font-size:12px; line-height:1.45; }
+.media-manager-error { margin:0; }
+.media-manager-logo { display:flex; align-items:center; gap:16px; padding:14px 16px; border:1px solid #e1ebe7; border-radius:14px; background:#fff; }
+.media-manager-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.media-manager-toolbar > span { color:#5e7c70; font-size:12px; font-weight:650; }
+.media-manager-toolbar .office-image-picker-add input,.media-manager-actions label input,.media-manager-logo input { position:absolute; width:1px; height:1px; opacity:0; }
+.media-manager .is-disabled { opacity:.55; pointer-events:none; }
+.media-manager-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
+.media-manager-grid article { display:grid; min-width:0; overflow:hidden; border:1px solid #dce9e3; border-radius:13px; background:#fff; }
+.media-manager-thumb { position:relative; display:block; width:100%; height:130px; padding:0; overflow:hidden; border:0; border-bottom:1px solid #e3eee9; border-radius:0 !important; background:#e9f1ec; cursor:zoom-in; }
+.media-manager-thumb img { object-fit:cover; }
+.media-manager-thumb > span { position:absolute; right:8px; bottom:8px; display:flex; align-items:center; gap:4px; padding:4px 7px; border-radius:7px; color:#fff; background:#0f2a22b3; font-size:11px; font-weight:700; }
+.media-manager-thumb > em { position:absolute; top:8px; left:8px; display:flex; align-items:center; gap:4px; padding:3px 7px; border-radius:7px; color:#255c4c; background:#ffffffe6; font-size:10px; font-style:normal; font-weight:750; }
+.media-manager-busy { position:absolute; inset:0; display:grid; place-items:center; color:#087a60; background:#ffffffb3; }
+.media-manager-meta { display:grid; gap:2px; padding:9px 11px 0; }
+.media-manager-meta strong { overflow:hidden; color:#29483f; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.media-manager-meta small { color:#6b8179; font-size:11px; }
+.media-manager-actions { display:flex; gap:6px; padding:9px 11px 11px; }
+.media-manager-actions label,.media-manager-actions button { position:relative; display:inline-flex; min-height:32px; flex:1; align-items:center; justify-content:center; gap:5px; padding:0 9px; border-radius:8px; font-size:12px; font-weight:750; cursor:pointer; }
+.media-manager-actions label { border:1px solid #b7d9ca; color:#087a60; background:#eaf7f2; }
+.media-manager-actions label:hover { background:#dff2e9; }
+.media-manager-actions button { border:1px solid #efd8d4; color:#ac554e; background:#fff; }
+.media-manager-actions button:hover { background:#fff4f3; }
+.company-logo-upload { position:relative; }
+.company-logo-upload.is-disabled { opacity:.55; pointer-events:none; }
+.company-logo-preview .media-manager-busy { z-index:1; }
+.media-manager-preview { width:min(760px,100%); }
+.media-manager-preview .office-image-review-hero { min-height:min(60dvh,460px); margin:15px 20px; }
+.media-manager-preview footer button:first-child { display:inline-flex; align-items:center; gap:6px; border-color:#efd8d4; color:#ac554e; }
+
+/* Confirmation dialog for destructive actions. */
+.confirm-dialog p { display:flex; align-items:flex-start; gap:10px; margin:0; color:#4d665e; font-size:14px; line-height:1.55; }
+.confirm-dialog p svg { width:20px; height:20px; flex:none; margin-top:1px; color:#c0673f; }
+.confirm-dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+.confirm-dialog-actions button { display:inline-flex; min-height:40px; align-items:center; gap:7px; padding:0 16px; border-radius:10px; font-size:13px; font-weight:750; }
+.confirm-dialog-cancel { border:1px solid #d7e1e6; color:#47616f; background:#fff; }
+.confirm-dialog-cancel:hover { background:#f6fafb; }
+.confirm-dialog-danger { border:1px solid #b43d3d; color:#fff; background:#c24545; }
+.confirm-dialog-danger:hover { background:#a93838; }
+
+/* Facility review list with per-facility images, dashboard edit panel, and profile logos. */
+.facility-review-list > .facility-review-item { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; }
+/* The generic facility-list article rule would otherwise also style the nested image cards. */
+.facility-review-list .media-manager-grid article { display:grid; grid-template-columns:minmax(0,1fr); align-items:stretch; gap:0; padding:0; border-radius:13px; background:#fff; }
+.facility-review-summary { display:flex; align-items:flex-start; gap:12px; }
+.facility-review-summary > div { display:grid; min-width:0; flex:1; gap:2px; }
+.facility-media-details > summary { display:inline-flex; align-items:center; gap:7px; color:#087a60; cursor:pointer; font-size:13px; font-weight:750; }
+.supplier-edit-panel { display:grid; gap:14px; margin-top:12px; }
+.supplier-edit-panel .media-manager { margin-top:0; }
+.supplier-edit-company-link { display:inline-flex; align-items:center; gap:7px; justify-self:start; }
+.provider-logo-small { width:36px; height:36px; border-radius:10px; }
+.buyer-rail-avatar > b.buyer-rail-logo { position:relative; overflow:hidden; border:1px solid #dce9e3; background:#fff; }
+.buyer-rail-logo img { object-fit:contain; padding:2px; }
+.settings-card-heading > span.settings-logo { position:relative; overflow:hidden; border:1px solid #dce9e3; background:#fff; }
+.settings-logo img { object-fit:contain; padding:4px; }
+
+@media(max-width:560px) {
+  .media-manager { padding:13px; }
+  .media-manager-toolbar { align-items:flex-start; flex-direction:column; }
+  .media-manager-logo { align-items:flex-start; flex-direction:column; }
+  .media-manager-grid { grid-template-columns:1fr; }
+  .confirm-dialog-actions button { flex:1; justify-content:center; }
+}
+.company-logo-picker.has-error { border-color:#d98a8f; background:#fdf6f6; }
+.company-logo-copy em.is-required { color:#a5363c; font-weight:700; }
+
+/* Round provider logo shared by the map popup, profile panel, directories, and profiles. */
+.provider-logo-disc { --logo-ink:#2563eb; --logo-ring:#2563eb; --logo-tint:#e8f0ff; position:relative; display:inline-grid; place-items:center; flex:none; overflow:hidden; border:2.5px solid #fff; border-radius:50%; color:var(--logo-ink); background:#fff; box-shadow:0 0 0 1.5px color-mix(in srgb,var(--logo-ring) 55%,transparent),0 6px 18px rgb(15 40 34 / 18%); font-weight:800; letter-spacing:-.03em; line-height:1; isolation:isolate; }
+.provider-logo-disc.is-facility { --logo-ink:#047857; --logo-ring:#059669; --logo-tint:#e3f6ee; }
+.provider-logo-disc.is-robotics { --logo-ink:#6d28d9; --logo-ring:#7c3aed; --logo-tint:#f0eaff; }
+.provider-logo-disc.is-fallback { color:#fff; background:linear-gradient(145deg,color-mix(in srgb,var(--logo-ring) 78%,#fff),var(--logo-ink)); text-shadow:0 1px 2px rgb(0 0 0 / 18%); }
+.provider-logo-disc-inner { position:absolute; inset:0; }
+.provider-logo-disc.is-contain .provider-logo-disc-inner { inset:15%; }
+.provider-logo-disc-inner img { object-fit:contain; }
+.provider-logo-disc.is-cover .provider-logo-disc-inner img { object-fit:cover; }
+/* Subtle inner highlight gives the badge depth on any logo color. */
+.provider-logo-disc::after { content:""; position:absolute; inset:0; z-index:1; border-radius:50%; pointer-events:none; box-shadow:inset 0 0 0 1px rgb(0 0 0 / 6%),inset 0 1px 0 rgb(255 255 255 / 35%); }
+
+/* Profile panel: the logo overlaps the cover image like an avatar. */
+.profile-content > .profile-panel-logo { position:relative; z-index:2; margin:-42px 0 6px; }
+.profile-title .icon-button { flex:none; }
+.profile-title > div:first-child { flex:1; min-width:0; }
+
+/* Operator page hero logo. */
+.opx-hero-logo-disc { margin-top:18px; box-shadow:0 0 0 4px #ffffff30,0 14px 34px rgb(0 0 0 / 28%); }
+
+/* Related provider cards: logo overlaps the bottom edge of the image. */
+.op-related-card .op-related-logo { position:relative; z-index:1; display:flex; margin:-26px 0 0 12px; }
+.op-related-card .op-related-logo + strong { margin-top:8px; }
+
+/* Directory rows with a logo. */
+.provider-card > .provider-logo-disc { margin-top:2px; }
+.map-company-list button.has-logo { display:grid; grid-template-columns:38px minmax(0,1fr); column-gap:10px; align-items:center; }
+.map-company-list button.has-logo > .provider-logo-disc { grid-row:span 3; }
+.map-company-list button.has-logo > strong { margin-top:0; }
+.landing-quick-results > button > .provider-logo-disc { box-shadow:0 0 0 2px #fff,0 3px 10px rgb(23 58 51 / 10%); }
+.profile-restore-tab > .provider-logo-disc { box-shadow:0 0 0 2px #fff,0 3px 10px rgb(23 58 51 / 12%); }
+.profile-panel .sample-badge { right:18px; left:auto; }
+
+/* Facility registration wizard. */
+.office-image-picker-heading em.is-required,.official-document-heading em.is-required,.company-logo-copy em.is-required { color:#a5363c; font-weight:700; }
+.official-document-picker.has-error { border-color:#d98a8f; background:#fdf6f6; }
+.wizard-section-label small { margin-left:6px; color:#789087; font-size:11px; font-weight:500; text-transform:none; letter-spacing:0; }
+.wizard-chip-grid { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px; }
+.wizard-chip-grid button { display:inline-flex; min-height:36px; align-items:center; gap:6px; padding:0 14px; border:1px solid #dbe7e2; border-radius:999px; color:#41635a; background:#fff; font-size:13px; font-weight:650; transition:border-color .18s ease,background-color .18s ease,color .18s ease; }
+.wizard-chip-grid button:hover { border-color:#b8d8cc; background:#f6fbf9; }
+.wizard-chip-grid button.selected { border-color:#16846a; color:#0d6b55; background:#e9f7f1; }
+.wizard-chip-grid button:focus-visible { outline:2px solid #20b997; outline-offset:2px; }
+.wizard-other-environments small { margin-left:6px; color:#789087; font-size:11px; font-weight:500; }
+.facility-registration-form .company-evidence-fields > div > .fieldset-note { display:flex; align-items:center; gap:6px; margin-top:10px; }

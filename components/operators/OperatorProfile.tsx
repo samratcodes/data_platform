@@ -4,8 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { animate, motion, useInView, useMotionTemplate, useMotionValue, useScroll, useSpring, useTransform, type Variants } from "framer-motion";
-import { ArrowLeft, ArrowUpRight, BadgeCheck, Bookmark, Bot, Check, ChevronDown, ChevronRight, Compass, Database, ExternalLink, Factory, Layers, Link2, LoaderCircle, MapPin, MessageSquare, Radio, ShieldCheck, Sparkles, X } from "lucide-react";
-import BuyerNavigationRail from "@/components/navigation/BuyerNavigationRail";
+import { ArrowLeft, ArrowUpRight, BadgeCheck, Bookmark, Bot, Check, ChevronDown, ChevronRight, Compass, Database, ExternalLink, Factory, Footprints, Hand, Layers, Link2, LoaderCircle, MapPin, MessageSquare, Radio, ShieldCheck, Sparkles, Users, X } from "lucide-react";
+import AppNavigationRail from "@/components/navigation/AppNavigationRail";
 import ChatModal from "@/components/messaging/ChatModal";
 import ConciergeForm from "@/components/workspace/ConciergeForm";
 import Modal from "@/components/ui/Modal";
@@ -14,6 +14,8 @@ import { useMotionPreference } from "@/hooks/useMotionPreference";
 import { api } from "@/lib/api-client";
 import type { PublicOperator, User, Workspace } from "@/types/app";
 import type { NodeData } from "@/types/provider";
+import ProviderLogo from "@/components/ui/ProviderLogo";
+import { formatCount, type PublicFacilityDetails } from "@/lib/facility";
 
 const emptyWorkspace: Workspace = { saved: [], requests: [] };
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -133,6 +135,25 @@ function ProcessTimeline({ name }: { name: string }) {
   </ol>;
 }
 
+/** Workforce breakdown for factories: who works seated with their hands, and who moves around the floor. */
+function FactoryWorkforce({ factory, reduced }: { factory: PublicFacilityDetails; reduced: boolean }) {
+  const other = Math.max(0, factory.totalWorkers - factory.seatedWorkers - factory.mobileWorkers);
+  const share = (value: number) => `${factory.totalWorkers ? (value / factory.totalWorkers) * 100 : 0}%`;
+  const groups = [
+    { key: "seated", label: "Seated, hand-movement tasks", value: factory.seatedWorkers, icon: <Hand size={16}/> },
+    { key: "mobile", label: "Tasks with movement", value: factory.mobileWorkers, icon: <Footprints size={16}/> },
+    ...(other ? [{ key: "other", label: "Other roles", value: other, icon: <Users size={16}/> }] : []),
+  ];
+  return <section className="opx-section opx-workforce">
+    <SectionHead eyebrow="WORKFORCE" title={`${formatCount(factory.totalWorkers)} workers across ${factory.shiftsPerDay} ${factory.shiftsPerDay === 1 ? "shift" : "shifts"}`}>The people whose everyday tasks can be captured, reviewed during verification.</SectionHead>
+    <Reveal><div className="opx-workforce-bar" aria-hidden>{groups.map((group) => <i key={group.key} data-group={group.key} style={{ width: share(group.value) }}/>)}</div></Reveal>
+    <motion.ul className="opx-workforce-groups" variants={stagger} initial={reduced ? false : "hidden"} whileInView="show" viewport={{ once: true, amount: 0.3 }}>
+      {groups.map((group) => <motion.li key={group.key} variants={rise} data-group={group.key}><span>{group.icon}</span><strong>{formatCount(group.value)}</strong><small>{group.label}</small></motion.li>)}
+    </motion.ul>
+    {factory.tasks.length > 0 && <Reveal className="opx-envs"><h3><Hand size={15}/>Typical tasks</h3><div>{factory.tasks.map((task) => <span key={task}><Check size={12}/>{task}</span>)}</div></Reveal>}
+  </section>;
+}
+
 export default function OperatorProfile({ user, operator, related }: { user: User; operator: NodeData; related: PublicOperator[] }) {
   const [workspace, setWorkspace] = useState<Workspace>(emptyWorkspace);
   const [request, setRequest] = useState(false);
@@ -193,7 +214,13 @@ export default function OperatorProfile({ user, operator, related }: { user: Use
     {requested ? <><Check size={16}/>Request sent</> : <>{label}<ArrowUpRight size={16}/></>}
   </button>;
 
-  const stats = [
+  const factory = operator.profile.facility;
+  const stats = factory ? [
+    { label: "Total workers", value: factory.totalWorkers },
+    { label: "Seated hand-task workers", value: factory.seatedWorkers },
+    { label: "Workers in motion", value: factory.mobileWorkers },
+    { label: "Facility photos", value: photos.length },
+  ] : [
     { label: "Data modalities", value: operator.modalities.length },
     { label: "Data streams", value: dataStreams.length },
     { label: "Capture environments", value: captureEnvironments.length },
@@ -202,7 +229,7 @@ export default function OperatorProfile({ user, operator, related }: { user: Use
 
   return <main className="sourcing-app operator-profile-page">
     {!reduced && <motion.div className="opx-progress" style={{ scaleX: pageBar }} aria-hidden/>}
-    <BuyerNavigationRail user={user} active="map"/>
+    <AppNavigationRail user={user} active="map"/>
     <div className="op-shell">
       <nav className={`op-topbar ${scrolled ? "is-scrolled" : ""}`} aria-label="Breadcrumb">
         <Link className="op-back" href={`/map?operator=${operator.slug}`}><ArrowLeft size={15}/>Back to map</Link>
@@ -231,13 +258,15 @@ export default function OperatorProfile({ user, operator, related }: { user: Use
               <span className="op-chip op-chip-verified"><BadgeCheck size={14}/>{verificationLabel(operator.verificationLevel)}</span>
               <span className="op-chip opx-chip-live"><i/>Accepting requests</span>
             </motion.div>
+            <motion.span className="opx-hero-logo" variants={rise}><ProviderLogo cover={Boolean(operator.profile?.logoIsPhoto)} className="opx-hero-logo-disc" name={operator.name} logo={operator.profile.logo} type={operator.type} size={84}/></motion.span>
             <h1 aria-label={operator.name}>
               {operator.name.split(" ").map((word, index) => <span className="opx-word" key={`${word}-${index}`} aria-hidden>
                 <motion.span variants={{ hidden: { y: "110%", rotate: 4 }, show: { y: "0%", rotate: 0, transition: { duration: 0.85, ease } } }}>{word}</motion.span>
               </span>)}
             </h1>
             <motion.p className="opx-hero-lede" variants={rise}>{lede(description)}</motion.p>
-            <motion.p className="opx-hero-place" variants={rise}><MapPin size={14}/>{place}{operator.company && <> · Operated by <strong>{operator.company.name}</strong></>}</motion.p>
+            {operator.company && <motion.p className="provider-company-line is-hero" variants={rise}><span>by</span><Link href={`/operators/${operator.company.slug}`}>{operator.company.name}<ArrowUpRight size={14}/></Link></motion.p>}
+            <motion.p className="opx-hero-place" variants={rise}><MapPin size={14}/>{place}</motion.p>
             <motion.div className="opx-hero-actions" variants={rise}>
               <Magnetic>{requestButton("Request data")}</Magnetic>
               <button type="button" className="opx-glass-button" onClick={() => setChat(true)}><MessageSquare size={15}/>Message provider</button>
@@ -279,12 +308,14 @@ export default function OperatorProfile({ user, operator, related }: { user: Use
           <Reveal delay={0.2} className="op-modalities">{operator.modalities.map((item) => <span key={item}>{item}</span>)}</Reveal>
         </div>
         <motion.div className="opx-pillars" variants={stagger} initial={reduced ? false : "hidden"} whileInView="show" viewport={{ once: true, amount: 0.25 }}>
-          <TiltCard><span className={`opx-icon ${typeClass}`}>{typeIcon(operator.type, 18)}</span><strong>{operator.type}</strong><p>Listed on the network as a {operator.type.toLowerCase()} partner.</p></TiltCard>
+          <TiltCard><span className={`opx-icon ${typeClass}`}>{typeIcon(operator.type, 18)}</span><strong>{factory ? `${factory.categoryLabel} facility` : operator.type}</strong><p>{factory ? `A verified ${factory.categoryLabel.toLowerCase()} facility running ${factory.shiftsPerDay} ${factory.shiftsPerDay === 1 ? "shift" : "shifts"} a day.` : `Listed on the network as a ${operator.type.toLowerCase()} partner.`}</p></TiltCard>
           <TiltCard><span className="opx-icon"><BadgeCheck size={18}/></span><strong>{verificationLabel(operator.verificationLevel)}</strong><p>Capabilities and evidence come from the approved facility review.</p></TiltCard>
           <TiltCard><span className="opx-icon"><Layers size={18}/></span><strong>{operator.modalities.length} modalities</strong><p>{operator.modalities.join(", ") || "Modalities shared on request."}</p></TiltCard>
           <TiltCard><span className="opx-icon"><MapPin size={18}/></span><strong>{operator.city}</strong><p>{operator.country} · {operator.profile.publicExactLocation ? "Exact location published" : "City-level location"}</p></TiltCard>
         </motion.div>
       </section>
+
+      {factory && <FactoryWorkforce factory={factory} reduced={Boolean(reduced)}/>}
 
       {/* Data streams & environments */}
       {(dataStreams.length > 0 || captureEnvironments.length > 0) && <section className="opx-section">
@@ -297,7 +328,7 @@ export default function OperatorProfile({ user, operator, related }: { user: Use
           </motion.li>)}
         </motion.ul>}
         {captureEnvironments.length > 0 && <Reveal className="opx-envs">
-          <h3><Compass size={15}/>Capture environments</h3>
+          <h3><Compass size={15}/>{factory ? "Facility areas" : "Capture environments"}</h3>
           <motion.div variants={stagger} initial={reduced ? false : "hidden"} whileInView="show" viewport={{ once: true }}>
             {captureEnvironments.map((item) => <motion.span key={item} variants={{ hidden: { opacity: 0, scale: 0.8 }, show: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 260, damping: 18 } } }}><Check size={12}/>{item}</motion.span>)}
           </motion.div>
@@ -363,6 +394,7 @@ export default function OperatorProfile({ user, operator, related }: { user: Use
           {related.map((item) => <motion.div key={item.slug} variants={rise}>
             <Link className="op-related-card" href={`/operators/${item.slug}`}>
               <span className="op-related-media"><Image src={item.media.src} alt="" fill sizes="(max-width: 760px) 100vw, 360px" className="object-cover" unoptimized={remote(item.media.src)}/></span>
+              <span className="op-related-logo"><ProviderLogo cover={Boolean(item.profile?.logoIsPhoto)} name={item.name} logo={item.profile?.logo} type={item.type} size={52}/></span>
               <strong>{item.name}</strong>
               <small><MapPin size={11}/>{item.city}, {item.country}</small>
               <em>{item.type}<ArrowUpRight size={12}/></em>

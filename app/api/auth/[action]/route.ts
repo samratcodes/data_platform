@@ -161,6 +161,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
     const companyRegistration = role === "supplier" && body.companyApplication === true;
     const company = companyRegistration ? {
       businessName: cleanSingleLine(body.businessName, 120),
+      focus: typeof body.focus === "string" && ["collection", "platform", "embodied"].includes(body.focus) ? body.focus : "collection",
       description: cleanMultiline(body.description, 3_000),
       website: safeHttpsUrl(body.websiteUrl),
       mapsUrl: safeHttpsUrl(body.mapsUrl),
@@ -198,9 +199,9 @@ export async function POST(request: Request, context: { params: Promise<{ action
         await client.query(`
           INSERT INTO supplier_applications (
             id, user_id, application_kind, business_name, maps_url, physical_address, city, country,
-            longitude, latitude, hardware_pictures, provider_type, modalities, profile_description, website_url
-          ) VALUES ($1,$2,'company',$3,$4,$5,$6,$7,$8,$9,$10::jsonb,'Data Company',$11::jsonb,$12,$13)
-        `, [randomUUID(), id, company.businessName, company.mapsUrl, company.address, company.city, company.country, company.longitude, company.latitude, JSON.stringify(company.pictures), JSON.stringify(company.modalities), company.description, company.website]);
+            longitude, latitude, hardware_pictures, provider_type, modalities, profile_description, website_url, company_focus
+          ) VALUES ($1,$2,'company',$3,$4,$5,$6,$7,$8,$9,$10::jsonb,'Data Company',$11::jsonb,$12,$13,$14)
+        `, [randomUUID(), id, company.businessName, company.mapsUrl, company.address, company.city, company.country, company.longitude, company.latitude, JSON.stringify(company.pictures), JSON.stringify(company.modalities), company.description, company.website, company.focus]);
       }
       if (created) verificationOutboxId = await queueVerificationEmail({ id, name, email }, appOrigin(request), client);
       await client.query("COMMIT");

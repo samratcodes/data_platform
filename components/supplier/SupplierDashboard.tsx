@@ -2,86 +2,105 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, Bookmark, Clock3, Eye, FileQuestion, MessageSquare, Pencil, Plus, ShieldCheck } from "lucide-react";
-import BuyerNavigationRail from "@/components/navigation/BuyerNavigationRail";
+import Image from "next/image";
+import { isPublicAsset } from "@/lib/image";
+import { ArrowRight, Building2, Eye, Factory, FileQuestion, ListChecks, MessageSquare, Pencil, Plus, Zap } from "lucide-react";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { api } from "@/lib/api-client";
+import { formatCount, parseFacilityDetails } from "@/lib/facility";
 import type { User } from "@/types/app";
+import type { SupplierListing } from "@/types/supplier";
 import Inbox from "@/components/messaging/Inbox";
 import SupplierRequests, { type SupplierAccessRequest } from "./SupplierRequests";
+import FacilityCard from "./FacilityCard";
+import SupplierShell, { SideCard, SideSteps } from "./SupplierShell";
+import { isLive } from "./facility-status";
 
-type Provider = {
-  slug: string;
-  name: string;
-  status: string;
-  verification_level: string;
-  profile_views: number;
-  saves: number;
-  access_requests: number;
-  conversations: number;
-  modalities: string[];
-  media: { src: string };
-  profile: { description?: string; capacity?: string; captureEnvironments?: string[]; photos?: string[] };
-};
 type Dashboard = {
-  providers: Provider[];
-  applications: Array<{ id: string; application_kind: "company" | "facility"; business_name: string; provider_slug: string | null; status: string; verification_level: string; admin_notes: string | null }>;
+  listings: SupplierListing[];
   conversations: Array<{ id: string; operator_slug: string }>;
   accessRequests: SupplierAccessRequest[];
 };
 
+const PREVIEW_COUNT = 3;
+
+/** The data-company home: activity across every listing, a glance at facilities, and buyer requests. */
 export default function SupplierDashboard({ user }: { user: User }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState("");
   const [requestBusy, setRequestBusy] = useState("");
   const load = async () => setData(await api<Dashboard>("/api/supplier/dashboard"));
 
   useEffect(() => {
     api<Dashboard>("/api/supplier/dashboard").then(setData).catch((reason) => setError(reason.message));
   }, []);
-  const views = data?.providers.reduce((total, provider) => total + provider.profile_views, 0) ?? 0;
-  const saves = data?.providers.reduce((total, provider) => total + provider.saves, 0) ?? 0;
-  const requests = data?.providers.reduce((total, provider) => total + provider.access_requests, 0) ?? 0;
-  const companyApplication = data?.applications.find((application) => application.application_kind === "company");
 
-  return <main className="sourcing-app admin-page">
-    <BuyerNavigationRail user={user} active="supplier"/>
-    <section className="admin-shell">
-      <div className="onboarding-intro"><span>DATA COMPANY WORKSPACE</span><h1>Your presence on map.filemarket</h1><p>Manage your verified company, facility reviews, buyer requests, and conversations.</p></div>
-      {error && <p className="form-error">{error}</p>}
-      {companyApplication && companyApplication.status !== "approved" && <section className="company-review-status" data-status={companyApplication.status}><Clock3/><div><strong>{companyApplication.status === "rejected" ? "Verification needs an update" : "Company verification is pending"}</strong><p>{companyApplication.status === "rejected" ? companyApplication.admin_notes || "Review the feedback and update your company application." : "Your company application is with the trust team. We will notify you when the review is complete."}</p></div><em>{companyApplication.status}</em></section>}
-      <div className="supplier-metrics"><article><Eye/><strong>{views}</strong><span>Profile views</span></article><article><Bookmark/><strong>{saves}</strong><span>Buyer saves</span></article><article><FileQuestion/><strong>{requests}</strong><span>Data requests</span></article><article><MessageSquare/><strong>{data?.conversations.length ?? 0}</strong><span>Conversations</span></article></div>
-      <div className="supplier-heading"><h2>Facilities and reviews</h2><Link className="primary-button" href="/onboarding#facility"><Plus size={15}/>Add a facility</Link></div>
-      <SupplierRequests requests={data?.accessRequests ?? []} busy={requestBusy} onStatus={async (requestId, status) => {
-        setRequestBusy(requestId); setError("");
-        try { await api("/api/supplier/dashboard", { method: "PATCH", body: JSON.stringify({ action: "request-status", requestId, status }) }); await load(); }
-        catch (reason) { setError((reason as Error).message); }
-        finally { setRequestBusy(""); }
-      }}/>
-      <Inbox/>
-      <div className="admin-queue">
-        {data?.providers.map((provider) => <article key={provider.slug}>
-          <div className="admin-card-title"><BadgeCheck/><div><strong>{provider.name}</strong><span>{provider.verification_level} verified · {provider.profile_views} profile views</span></div><em>{provider.status}</em></div>
-          <div className="listing-analytics" aria-label={`${provider.name} listing analytics`}><span><Eye size={13}/><strong>{provider.profile_views}</strong>Views</span><span><Bookmark size={13}/><strong>{provider.saves}</strong>Saves</span><span><FileQuestion size={13}/><strong>{provider.access_requests}</strong>Requests</span><span><MessageSquare size={13}/><strong>{provider.conversations}</strong>Chats</span></div>
-          <button className="profile-edit-toggle" onClick={() => setEditing(editing === provider.slug ? "" : provider.slug)}><Pencil size={13}/>Edit profile</button>
-          {editing === provider.slug && <form className="supplier-edit-form" onSubmit={async (event) => {
-            event.preventDefault(); const values = new FormData(event.currentTarget); setError("");
-            try {
-              await api("/api/supplier/dashboard", { method: "PATCH", body: JSON.stringify({ slug: provider.slug, modalities: values.getAll("modalities"), photos: String(values.get("photos") || "").split("\n").map((item) => item.trim()).filter(Boolean), description: values.get("description"), capacity: values.get("capacity"), environments: String(values.get("environments") || "").split(",").map((item) => item.trim()).filter(Boolean) }) });
-              setEditing(""); await load();
-            } catch (reason) { setError((reason as Error).message); }
-          }}>
-            <label>Description<textarea name="description" defaultValue={provider.profile.description} required minLength={20} maxLength={3000}/></label>
-            <label>Collection capacity<input name="capacity" defaultValue={provider.profile.capacity} required maxLength={120}/></label>
-            <label>Capture environments<input name="environments" defaultValue={provider.profile.captureEnvironments?.join(", ")} maxLength={2000}/></label>
-            <fieldset><legend>Data capabilities</legend>{["Egocentric video", "Exocentric video", "Speech", "Images"].map((value) => <label key={value}><input type="checkbox" name="modalities" value={value} defaultChecked={provider.modalities.includes(value)}/>{value}</label>)}</fieldset>
-            <label>Facility photo URLs (one public HTTPS URL per line)<textarea name="photos" maxLength={16000} defaultValue={(provider.profile.photos || [provider.media.src]).join("\n")}/></label>
-            <p className="fieldset-note">Submitting changes removes this facility from the public directory until an admin approves the revision.</p>
-            <button className="primary-button">Submit changes for review</button>
-          </form>}
-        </article>)}
-        {data?.applications.map((application) => <article key={application.id}><div className="admin-card-title"><ShieldCheck/><div><strong>{application.business_name}</strong><span>{application.application_kind === "company" ? "Data company profile" : "Facility"} · {application.verification_level} verification{application.admin_notes ? ` · ${application.admin_notes}` : ""}</span></div><em>{application.status}</em></div></article>)}
-      </div>
+  const company = data?.listings.find((listing) => listing.application_kind === "company");
+  const facilities = data?.listings.filter((listing) => listing.application_kind === "facility") ?? [];
+  const companyApproved = company?.status === "approved" || Boolean(company && isLive(company));
+  const liveListings = data?.listings.filter(isLive) ?? [];
+  const total = (key: "profile_views" | "access_requests") => liveListings.reduce((sum, listing) => sum + listing[key], 0);
+  const workers = facilities.reduce((sum, listing) => sum + (parseFacilityDetails(listing.facility_details)?.totalWorkers ?? 0), 0);
+  const journey = [
+    { title: "Company profile", detail: "Submitted for review", done: Boolean(company) },
+    { title: "Company approved", detail: "Unlocks facility applications", done: companyApproved },
+    { title: "First facility", detail: "Apply with workforce, documents, and photos", done: facilities.length > 0 },
+    { title: "Live on the map", detail: "Buyers can find and contact you", done: facilities.some(isLive) },
+  ].map((item, index, items) => ({ ...item, current: !item.done && items.slice(0, index).every((previous) => previous.done) }));
+  const apply = companyApproved
+    ? <Link className="primary-button" href="/supplier/facilities/new"><Plus size={15}/>Apply for a new facility</Link>
+    : <span className="primary-button is-disabled" aria-disabled="true" title="Available after your company is approved"><Plus size={15}/>Apply for a new facility</span>;
+
+  return <SupplierShell
+    user={user} active="supplier" eyebrow="DATA COMPANY WORKSPACE" title={company?.business_name || "Your workspace"}
+    description="Activity across your company and facilities, and the buyer requests waiting on you."
+    actions={<><Link className="secondary-button" href="/supplier/facilities"><Factory size={15}/>Facilities</Link>{apply}</>}
+    notice={error && <p className="form-error">{error}</p>}
+    aside={<>
+      {company && <SideCard title="Company" icon={<Building2 size={16}/>}>
+        <div className="side-company">
+          <span className="provider-logo provider-logo-small">{user.companyLogo ? <Image src={user.companyLogo} alt="" fill unoptimized={!isPublicAsset(user.companyLogo)} sizes="40px"/> : <Building2/>}</span>
+          <div><strong>{company.business_name}</strong><small>{isLive(company) ? `${company.profile_views} profile views` : "Data company profile"}</small></div>
+          <StatusBadge status={company.status}/>
+        </div>
+        {company.status === "rejected" && company.admin_notes && <p className="factory-card-feedback">{company.admin_notes}</p>}
+        <Link className="secondary-button" href="/onboarding"><Pencil size={14}/>Edit company profile</Link>
+      </SideCard>}
+      {data && !journey.every((item) => item.done) && <SideCard title="Getting listed" icon={<ListChecks size={16}/>}><SideSteps items={journey}/></SideCard>}
+      <SideCard title="Quick actions" icon={<Zap size={16}/>} tone="accent">
+        <div className="side-actions">
+          <Link href="/supplier/facilities">View all facilities<ArrowRight size={14}/></Link>
+          {companyApproved && <Link href="/supplier/facilities/new">Apply for a new facility<ArrowRight size={14}/></Link>}
+          <Link href="/onboarding">Update company profile<ArrowRight size={14}/></Link>
+          <Link href="/map">See the public map<ArrowRight size={14}/></Link>
+        </div>
+      </SideCard>
+    </>}
+  >
+    <div className="supplier-metrics">
+      <article><Factory/><strong>{facilities.length}</strong><span>Facilities · {formatCount(workers)} workers</span></article>
+      <article><Eye/><strong>{total("profile_views")}</strong><span>Profile views</span></article>
+      <article><FileQuestion/><strong>{total("access_requests")}</strong><span>Data requests</span></article>
+      <article><MessageSquare/><strong>{data?.conversations.length ?? 0}</strong><span>Conversations</span></article>
+    </div>
+
+    <section className="supplier-factories" aria-labelledby="facilities-title">
+      <div className="supplier-heading"><div><span className="section-kicker">FACILITIES</span><h2 id="facilities-title">Your facilities {facilities.length > 0 && <small>{facilities.length}</small>}</h2></div>{facilities.length > 0 && <Link className="secondary-button" href="/supplier/facilities">View all<ArrowRight size={14}/></Link>}</div>
+      {!data ? <p className="workspace-empty">Loading facilities…</p>
+        : facilities.length ? <div className="factory-grid">{facilities.slice(0, PREVIEW_COUNT).map((listing) => <FacilityCard key={listing.id} listing={listing} companyLogo={user.companyLogo}/>)}</div>
+          : <div className="factory-empty">
+            <span><Factory/></span>
+            <div><strong>{companyApproved ? "Apply for your first facility" : "Your facilities will appear here"}</strong><p>{companyApproved ? "Tell us the facility type, workforce, and location, and add its documents and photos. Once approved, it gets its own pin on the map." : "Facility applications unlock once your company profile is approved."}</p></div>
+            {apply}
+          </div>}
     </section>
-  </main>;
+
+    <SupplierRequests requests={data?.accessRequests ?? []} busy={requestBusy} onStatus={async (requestId, status) => {
+      setRequestBusy(requestId); setError("");
+      try { await api("/api/supplier/dashboard", { method: "PATCH", body: JSON.stringify({ action: "request-status", requestId, status }) }); await load(); }
+      catch (reason) { setError((reason as Error).message); }
+      finally { setRequestBusy(""); }
+    }}/>
+    <Inbox/>
+  </SupplierShell>;
 }

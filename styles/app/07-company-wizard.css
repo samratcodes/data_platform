@@ -123,8 +123,6 @@
   .company-wizard-login { text-align:center; }
 }
 @media(max-width:639px) {
-  .review-overview { grid-template-columns:1fr 1fr; }
   .request-footer { align-items:flex-start; flex-direction:column; }
-  .lead-details { grid-template-columns:1fr; }
   .authenticated .profile-panel { background:#fff; }
 }

@@ -13,6 +13,6 @@ export default function Modal({ title, onClose, children, wide = false }: { titl
     return () => { element?.close(); previous?.focus(); };
   }, []);
   return <dialog ref={ref} className={`sourcing-modal ${wide ? "wide" : ""}`} aria-label={title} onCancel={(event) => { event.preventDefault(); close.current(); }} onClick={(event) => { if (event.target === event.currentTarget) close.current(); }}>
-    <div className="modal-content"><div className="modal-heading"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label={`Close ${title}`}><X size={20}/></button></div>{children}</div>
+    <div className="modal-content"><div className="modal-heading"><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={`Close ${title}`}><X size={20}/></button></div>{children}</div>
   </dialog>;
 }

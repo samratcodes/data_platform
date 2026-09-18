@@ -23,7 +23,12 @@ type ProviderRow = {
   modalities: NodeData["modalities"];
   media: NodeData["media"];
   profile: StoredProfile;
+  company_name: string | null;
+  company_slug: string | null;
 };
+
+/** Facilities approved before `logoIsPhoto` existed: their own profile photo is stored under `facility-logo/`. */
+const isFacilityPhoto = (row: ProviderRow) => row.provider_type === "Facility" && Boolean(row.profile.logo && decodeURIComponent(row.profile.logo).includes("/facility-logo/"));
 
 function fromRow(row: ProviderRow): NodeData {
   const coordinates: [number, number] = row.profile.publicExactLocation
@@ -40,43 +45,52 @@ function fromRow(row: ProviderRow): NodeData {
     coordinates,
     type: row.provider_type,
     isFacility: row.provider_type !== "Data Company",
-    company: row.profile.company,
+    company: row.company_slug && row.company_name ? { name: row.company_name, slug: row.company_slug } : row.profile.company,
     modalities: row.modalities,
     media: row.media,
-    profile: row.profile,
+    profile: { ...row.profile, logoIsPhoto: row.profile.logoIsPhoto ?? isFacilityPhoto(row) },
   };
 }
 
 /** Strips a provider down to the fields the browser needs. */
-export function toPublicOperator({ id, slug, name, city, country, coordinates, type, verificationLevel, modalities, profile, media }: NodeData): PublicOperator {
-  return { id, slug, name, city, country, coordinates, type, verificationLevel, modalities, profile, media };
+export function toPublicOperator({ id, slug, name, city, country, coordinates, type, verificationLevel, modalities, profile, media, company }: NodeData): PublicOperator {
+  return { id, slug, name, city, country, coordinates, type, verificationLevel, modalities, profile, media, ...(company ? { company } : {}) };
 }
 
-const providerColumns = "id, slug, name, city, country, longitude, latitude, provider_type, modalities, media, profile, verification_level";
-const publicProvider = "status = 'approved' AND verification_level IN ('online', 'physical') AND is_demo = FALSE";
+const providerColumns = `providers.id, providers.slug, providers.name, providers.city, providers.country, providers.longitude, providers.latitude,
+  providers.provider_type, providers.modalities, providers.media, providers.profile, providers.verification_level,
+  company.name AS company_name, company.slug AS company_slug`;
+const publicProvider = "providers.status = 'approved' AND providers.verification_level IN ('online', 'physical') AND providers.is_demo = FALSE";
+// Facilities are listed under the approved data company that owns them.
+const withCompany = `providers
+  LEFT JOIN LATERAL (
+    SELECT owner.name, owner.slug FROM providers owner
+    WHERE owner.owner_id = providers.owner_id AND owner.provider_type = 'Data Company' AND owner.status = 'approved' AND owner.slug <> providers.slug
+    ORDER BY owner.created_at ASC LIMIT 1
+  ) company ON providers.provider_type <> 'Data Company'`;
 
 // React cache() dedupes these within one request, so generateMetadata and the page share a query.
 export const verifiedOperators = cache(async () => {
   const result = await query<ProviderRow>(`
     SELECT ${providerColumns}
-    FROM providers
+    FROM ${withCompany}
     WHERE ${publicProvider}
-    ORDER BY created_at ASC, id ASC
+    ORDER BY providers.created_at ASC, providers.id ASC
   `);
   return result.rows.map(fromRow);
 });
 
 export const verifiedOperator = cache(async (slug: string) => {
-  const result = await query<ProviderRow>(`SELECT ${providerColumns} FROM providers WHERE slug = $1 AND ${publicProvider} LIMIT 1`, [slug]);
+  const result = await query<ProviderRow>(`SELECT ${providerColumns} FROM ${withCompany} WHERE providers.slug = $1 AND ${publicProvider} LIMIT 1`, [slug]);
   return result.rows[0] ? fromRow(result.rows[0]) : undefined;
 });
 
 export async function relatedOperators(operator: NodeData, limit = 3) {
   const result = await query<ProviderRow>(`
     SELECT ${providerColumns}
-    FROM providers
-    WHERE ${publicProvider} AND slug <> $1
-    ORDER BY (country = $2) DESC, (provider_type = $3) DESC, created_at ASC, id ASC
+    FROM ${withCompany}
+    WHERE ${publicProvider} AND providers.slug <> $1
+    ORDER BY (providers.country = $2) DESC, (providers.provider_type = $3) DESC, providers.created_at ASC, providers.id ASC
     LIMIT $4
   `, [operator.slug, operator.country, operator.type, limit]);
   return result.rows.map(fromRow);

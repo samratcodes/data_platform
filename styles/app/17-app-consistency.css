@@ -1,0 +1,99 @@
+/* ─────────────────────────────────────────────────────────────
+   App-wide consistency with the landing page. Loaded last, it settles the
+   layered page styles onto the shared --fm-* tokens: one content column,
+   one heading scale, one primary action, and one stat tile.
+   ───────────────────────────────────────────────────────────── */
+
+:root { --app-content-width:1200px; }
+
+/* One content column: same width and left edge on every signed-in page.
+   Every page reserves the navigation rail's width before centering. */
+.buyer-workspace-page,.settings-page { padding-left:68px; }
+/* One content column: same width and left edge on every signed-in page. */
+.admin-console,
+.admin-shell.supplier-shell,
+.buyer-workspace-shell,
+.settings-page .settings-shell { width:min(var(--app-content-width),calc(100% - 48px)); margin-inline:auto; }
+.buyer-workspace-shell { padding:44px 0 72px; }
+.settings-page .settings-shell { margin-block:44px 72px; }
+.admin-shell.supplier-shell { margin-block:44px 72px; }
+
+/* Heading scale, taken from the landing and blog cards. */
+.supplier-heading h2 { color:var(--fm-ink); font-size:20px; font-weight:650; letter-spacing:-.3px; }
+.workspace-card-heading h2,
+.settings-card-heading h2,
+.verification-stage-heading h2 { color:var(--fm-ink); font-size:18px; font-weight:650; letter-spacing:-.2px; }
+.dashboard-card > header h2 { font-size:18px; font-weight:650; letter-spacing:-.2px; }
+.side-card h3 { font-weight:700; }
+.decision-panel h2,
+.media-manager-heading h3,
+.inbox h3 { color:var(--fm-ink); font-size:16px; font-weight:700; letter-spacing:-.1px; }
+.inbox h3 { display:flex; align-items:center; gap:8px; }
+.inbox h3 svg { color:var(--fm-green-strong); }
+.workspace-card-heading > a { align-self:flex-start; white-space:nowrap; }
+
+/* One primary action: the landing page's mint-to-blue gradient with dark text. */
+.company-wizard-full .wizard-next,
+.company-profile-editor .wizard-next,
+.decision-panel .button-approve {
+  border:0;
+  border-radius:var(--fm-radius-sm);
+  color:#082b24;
+  background:var(--fm-gradient);
+  box-shadow:0 8px 24px rgb(32 185 151 / 20%);
+  font-weight:700;
+}
+.company-wizard-full .wizard-next:hover:not(:disabled),
+.company-profile-editor .wizard-next:hover:not(:disabled),
+.decision-panel .button-approve:hover:not(:disabled) {
+  color:#082b24;
+  background:var(--fm-gradient);
+  box-shadow:0 10px 28px rgb(32 185 151 / 30%);
+  filter:brightness(1.03);
+  transform:none;
+}
+.company-wizard-full .wizard-back,
+.company-profile-editor .wizard-back { border-radius:var(--fm-radius-sm); }
+
+/* One stat tile: icon in a tinted square, the number, then its label. */
+.supplier-metrics,
+.buyer-workspace-stats { gap:14px; }
+.supplier-metrics article,
+.buyer-workspace-stats article {
+  display:grid;
+  min-height:0;
+  align-content:start;
+  gap:4px;
+  padding:18px;
+  border:1px solid var(--fm-line);
+  border-radius:var(--fm-radius-md);
+  background:#fff;
+  box-shadow:var(--fm-shadow-sm);
+}
+.supplier-metrics article > svg,
+.buyer-workspace-stats article > svg {
+  box-sizing:content-box;
+  width:18px;
+  height:18px;
+  margin-bottom:8px;
+  padding:9px;
+  border-radius:10px;
+  color:var(--fm-green-strong);
+  background:var(--fm-surface-muted);
+}
+.supplier-metrics strong,
+.buyer-workspace-stats strong { color:var(--fm-ink); font-size:32px; font-weight:700; line-height:1; }
+.supplier-metrics article > span,
+.buyer-workspace-stats small { margin:0; color:var(--fm-text); font-size:14px; font-weight:650; }
+.buyer-workspace-stats article > span { display:grid; gap:4px; }
+
+@media(max-width:760px) {
+  .buyer-workspace-page,.settings-page { padding-left:0; }
+  .admin-console,
+  .admin-shell.supplier-shell,
+  .buyer-workspace-shell,
+  .settings-page .settings-shell { width:calc(100% - 24px); }
+  .buyer-workspace-shell { padding:28px 0 56px; }
+  .settings-page .settings-shell,.admin-shell.supplier-shell { margin-block:28px 56px; }
+  .supplier-metrics strong,.buyer-workspace-stats strong { font-size:26px; }
+}

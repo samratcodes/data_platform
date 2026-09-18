@@ -1,3 +1,5 @@
+import type { PublicFacilityDetails } from "@/lib/facility";
+
 export type OrganizationType = "Facility" | "Data Company" | "Robotics";
 
 export type DataModality =
@@ -33,7 +35,13 @@ export interface NodeData {
     capacity: string;
     captureEnvironments: string[];
     photos?: string[];
+    /** Company logo uploaded during verification; only served once the company is approved. */
+    logo?: string | null;
+    /** True when `logo` is a facility profile photo, which always fills its round badge. */
+    logoIsPhoto?: boolean;
     publicExactLocation?: boolean;
+    /** Factory category and workforce, present on approved facilities. */
+    facility?: PublicFacilityDetails;
     links?: {
       linkedin?: string | null;
       twitter?: string | null;

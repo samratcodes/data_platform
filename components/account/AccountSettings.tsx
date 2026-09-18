@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import { isPublicAsset } from "@/lib/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, KeyRound, LoaderCircle, LogOut, ShieldCheck, UserRound } from "lucide-react";
-import BuyerNavigationRail from "@/components/navigation/BuyerNavigationRail";
+import AppNavigationRail from "@/components/navigation/AppNavigationRail";
+import PageHeader from "@/components/ui/PageHeader";
 import { api } from "@/lib/api-client";
 import type { User } from "@/types/app";
 
@@ -18,13 +22,14 @@ export default function AccountSettings({ user }: { user: User }) {
   const resetMessages = () => { setNotice(""); setError(""); };
 
   return <main className="sourcing-app settings-page">
-    <BuyerNavigationRail user={user} active="settings"/>
+    <AppNavigationRail user={user} active="settings"/>
     <section className="settings-shell">
-      <div className="onboarding-intro"><span>ACCOUNT SECURITY</span><h1>Settings</h1><p>Keep your profile current and control access to your map.filemarket account.</p></div>
+      <PageHeader eyebrow="ACCOUNT" title="Settings" description="Keep your profile current and control access to your map.filemarket account."/>
       {(notice || error) && <p className={error ? "form-error settings-message" : "settings-message settings-success"} role="status">{error || notice}</p>}
       <div className="settings-grid">
         <form className="settings-card" onSubmit={async (event) => { event.preventDefault(); resetMessages(); setProfileBusy(true); const name = new FormData(event.currentTarget).get("name"); try { await api("/api/account", { method: "PATCH", body: JSON.stringify({ action: "profile", name }) }); setNotice("Profile name updated."); router.refresh(); } catch (reason) { setError((reason as Error).message); } finally { setProfileBusy(false); } }}>
-          <div className="settings-card-heading"><span><UserRound/></span><div><h2>Profile</h2><p>Your account identity and role.</p></div></div>
+          <div className="settings-card-heading"><span className={user.companyLogo ? "settings-logo" : undefined}>{user.companyLogo ? <Image src={user.companyLogo} alt="Company logo" fill unoptimized={!isPublicAsset(user.companyLogo)} sizes="44px"/> : <UserRound/>}</span><div><h2>Profile</h2><p>Your account identity and role.</p></div></div>
+          {user.role === "supplier" && <p className="fieldset-note">{user.companyLogo ? "Your company logo is shown on your profile." : "Add a company logo to show it on your profile."} <Link href="/onboarding#company-profile">Manage logo and images</Link></p>}
           <label>Full name<input name="name" defaultValue={user.name} required minLength={2} maxLength={80} autoComplete="name"/></label>
           <label>Work email<input value={user.email} readOnly aria-describedby="email-change-note"/></label>
           <p id="email-change-note" className="fieldset-note">Email changes will be available with email verification.</p>
