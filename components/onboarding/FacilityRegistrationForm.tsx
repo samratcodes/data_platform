@@ -153,7 +153,7 @@ export default function FacilityRegistrationForm({ companyName, facility }: { co
   const [furthest, setFurthest] = useState(editing ? LAST_STEP : 0);
   const [values, setValues] = useState(() => initialValues(facility));
   const [evidence, setEvidence] = useState<CompanyEvidence>(() => ({
-    logo: null, officeImages: [],
+    logo: null, officeImages: [], coverUrl: null,
     documents: (facility?.official_documents ?? []).map((asset) => ({ key: asset.key, url: assetUrl(asset.key), name: asset.name, contentType: asset.contentType, size: asset.size || 0, type: asset.type || "Facility document" })),
   }));
   // Linked photos can be deleted live by the media manager, so only resend them after a new location is picked.
@@ -234,7 +234,7 @@ export default function FacilityRegistrationForm({ companyName, facility }: { co
   const assetKeyUrl = (key: string) => `/api/company-assets?key=${encodeURIComponent(key)}`;
   const preview: PreviewProps = {
     companyName, name: values.businessName.trim(), categoryLabel, place: [values.city, values.country].filter(Boolean).join(", "),
-    cover: evidence.officeImages[0]?.url ?? (facility?.office_images[0] ? assetKeyUrl(facility.office_images[0].key) : values.photos[0] ?? facility?.hardware_pictures[0]),
+    cover: evidence.officeImages.find((image) => image.url === evidence.coverUrl)?.url ?? evidence.officeImages[0]?.url ?? (facility?.cover_image ? (facility.cover_image.startsWith("http") ? facility.cover_image : assetKeyUrl(facility.cover_image)) : facility?.office_images[0] ? assetKeyUrl(facility.office_images[0].key) : values.photos[0] ?? facility?.hardware_pictures[0]),
     profile: evidence.logo?.url ?? (facility?.company_logo ? assetKeyUrl(facility.company_logo.key) : undefined),
     workers: Number.isFinite(total) ? total : null, seated, mobile, modalities: values.modalities,
   };
@@ -345,12 +345,12 @@ export default function FacilityRegistrationForm({ companyName, facility }: { co
         {step === 4 && <div className="company-wizard-fields company-evidence-fields">
           {facility
             ? <>
-              <ProviderMediaManager applicationId={facility.id} title="Profile photo and site photos" description="Changes to photos save right away. Your live listing keeps its current photos until the update is approved." showLogo logoRequired={false} logoLabel="Facility profile photo" logoNoun="profile photo" logoPhoto logo={facility.company_logo} images={facility.office_images} linkedPhotos={pickedLocation ? [] : facility.hardware_pictures} onChanged={async (message) => { setMediaNotice(message); router.refresh(); }}/>
+              <ProviderMediaManager applicationId={facility.id} title="Profile photo and site photos" description="Changes to photos save right away. Your live listing keeps its current photos until the update is approved." showLogo logoRequired={false} logoLabel="Facility profile photo" logoNoun="profile photo" logoPhoto logo={facility.company_logo} images={facility.office_images} linkedPhotos={pickedLocation ? [] : facility.hardware_pictures} cover={facility.cover_image} onChanged={async (message) => { setMediaNotice(message); router.refresh(); }}/>
               {mediaNotice && <p className="settings-message settings-success" role="status">{mediaNotice}</p>}
             </>
             : <>
               <CompanyLogoPicker label="Facility profile photo" noun="profile photo" photo required={false} hint="Shown on this facility's map pin and profile. Without one, your company logo is used." logo={evidence.logo} onChange={(logo) => setEvidence({ ...evidence, logo })} onError={setError}/>
-              <OfficeImagePicker title="Facility photos" required={!values.photos.length} images={evidence.officeImages} onChange={(officeImages) => setEvidence({ ...evidence, officeImages })} onError={setError}/>
+              <OfficeImagePicker title="Facility photos" required={!values.photos.length} images={evidence.officeImages} onChange={(officeImages) => setEvidence({ ...evidence, officeImages })} onError={setError} coverUrl={evidence.coverUrl} onCover={(coverUrl) => setEvidence({ ...evidence, coverUrl })}/>
             </>}
           {values.photos.length > 0 && (!facility || pickedLocation) && <p className="fieldset-note"><BadgeCheck/> {values.photos.length} public {values.photos.length === 1 ? "photo was" : "photos were"} imported from Google Maps and will be included with this facility.</p>}
           {fieldError("images") && <p className="wizard-section-error" role="alert">{fieldError("images")}</p>}

@@ -23,6 +23,7 @@ export type CompanyApplication = {
   modalities: string[];
   company_focus?: string | null;
   company_logo?: SavedAsset | null;
+  cover_image?: string | null;
   office_images?: SavedAsset[];
   official_documents?: SavedAsset[];
   linkedin_url: string | null;
@@ -32,7 +33,7 @@ export type CompanyApplication = {
   has_sample: boolean;
 };
 
-const steps = ["Company profile & evidence", "Data capabilities", "Company location", "Links & sample"];
+const steps = ["Company profile & evidence", "Data capabilities", "Legal address", "Links & sample"];
 const assetUrl = (key: string) => `/api/company-assets?key=${encodeURIComponent(key)}`;
 const optional = (value: number | null | undefined) => value === null || value === undefined ? "" : String(value);
 
@@ -51,7 +52,8 @@ function initialEvidence(company?: CompanyApplication): CompanyEvidence {
   return {
     logo: null,
     officeImages: [],
-    documents: (company?.official_documents || []).map((asset) => ({ key: asset.key, url: assetUrl(asset.key), name: asset.name, contentType: asset.contentType, size: asset.size || 0, type: asset.type || "Official company document" })),
+    coverUrl: null,
+    documents: (company?.official_documents || []).map((asset) => ({ key: asset.key, url: assetUrl(asset.key), name: asset.name, contentType: asset.contentType, size: asset.size || 0, type: asset.type || "Company registration document" })),
   };
 }
 
@@ -127,7 +129,7 @@ export default function CompanyProfileEditor({ company, approved, onSaved, onMed
       <header><span>STEP {step + 1} OF 4{step === 0 ? ` · ${profileStage + 1} OF 2` : ""}</span><h2>{titles[step]}</h2><p>{descriptions[step]}</p></header>
       <div className="company-wizard-content">
         {(error || (attempted && Object.keys(fieldErrors).length > 0)) && <div className="company-wizard-alert" role="alert"><AlertTriangle size={19}/><span><strong>{error ? "Something needs attention" : "Check the highlighted fields"}</strong><small>{error || "Correct each highlighted field to continue."}</small></span></div>}
-        {step < 3 && <CompanyProfileStep step={step} profileStage={profileStage} values={values} onChange={(field, value) => setValues((current) => ({ ...current, [field]: value }))} onLocation={(location) => { setPickedLocation(true); setValues((current) => mergeCompanyLocation(current, location)); }} evidence={evidence} onEvidence={setEvidence} fieldErrors={fieldErrors} showTypeErrors={attempted} onError={setError} savedMedia={company && <ProviderMediaManager title="Logo and office images" description="Your logo appears on your public profile. Add, replace, or delete images at any time." showLogo logo={company.company_logo} images={company.office_images || []} linkedPhotos={company.hardware_pictures} onChanged={onMediaChanged}/>}/>}
+        {step < 3 && <CompanyProfileStep step={step} profileStage={profileStage} values={values} onChange={(field, value) => setValues((current) => ({ ...current, [field]: value }))} onLocation={(location) => { setPickedLocation(true); setValues((current) => mergeCompanyLocation(current, location)); }} evidence={evidence} onEvidence={setEvidence} fieldErrors={fieldErrors} showTypeErrors={attempted} onError={setError} savedMedia={company && <ProviderMediaManager title="Logo and office images" description="Your logo appears on your public profile, and the image you set as the background fills the top of it. Add, replace, or delete images at any time." showLogo logo={company.company_logo} images={company.office_images || []} linkedPhotos={company.hardware_pictures} cover={company.cover_image} onChanged={onMediaChanged}/>}/>}
         {step === 3 && <div className="company-wizard-fields">
           <div className="wizard-field-grid">{([["linkedinUrl", "LinkedIn", "https://linkedin.com/company/…"], ["twitterUrl", "X / Twitter", "https://x.com/…"], ["huggingFaceUrl", "Hugging Face", "https://huggingface.co/…"]] as const).map(([field, label, placeholder]) => <label className="wizard-input-card" key={field}><span>{label} <small>Optional</small></span><input type="url" maxLength={2048} value={links[field]} onChange={(event) => setLinks((current) => ({ ...current, [field]: event.target.value }))} placeholder={placeholder}/></label>)}</div>
           <label className="wizard-input-card company-sample-card"><span className="wizard-upload-icon"><FileUp/></span><span><strong>{sample ? `Selected sample: ${sample.name}` : company?.has_sample ? `Current sample: ${company.sample_file_name}` : "Upload a sample file"} <em>Optional</em></strong><small>{sample || company?.has_sample ? "Choose a file to replace it. " : ""}JSON, CSV, TXT, ZIP, PDF, image, audio, or MP4 · 1.5 MB maximum</small></span><input type="file" accept=".json,.csv,.txt,.zip,.pdf,.jpg,.jpeg,.png,.webp,.mp3,.wav,.mp4,application/octet-stream" onChange={(event) => setSample(event.target.files?.[0] || null)}/></label>

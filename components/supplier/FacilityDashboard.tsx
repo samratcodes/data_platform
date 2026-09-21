@@ -95,7 +95,7 @@ export default function FacilityDashboard({ user, facility, requests, updated }:
     </section>
 
     <section className="dashboard-card">
-      <ProviderMediaManager applicationId={facility.id} title="Profile photo and site photos" description="The profile photo appears on this facility's map pin and profile. Site photos show buyers where data is captured." showLogo logoRequired={false} logoLabel="Facility profile photo" logoNoun="profile photo" logoPhoto logo={facility.company_logo} images={facility.office_images} linkedPhotos={facility.hardware_pictures} onChanged={async (message) => { setError(""); setNotice(message); router.refresh(); }}/>
+      <ProviderMediaManager applicationId={facility.id} title="Profile photo and site photos" description="The profile photo appears on this facility's map pin and profile. Site photos show buyers where data is captured." showLogo logoRequired={false} logoLabel="Facility profile photo" logoNoun="profile photo" logoPhoto logo={facility.company_logo} images={facility.office_images} linkedPhotos={facility.hardware_pictures} cover={facility.cover_image} onChanged={async (message) => { setError(""); setNotice(message); router.refresh(); }}/>
     </section>
 
     {live && <SupplierRequests requests={requests} busy={requestBusy} onStatus={async (requestId, status) => {

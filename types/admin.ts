@@ -57,6 +57,8 @@ export type ApplicationDetail = {
   office_images: StoredAsset[];
   official_documents: StoredAsset[];
   company_logo: StoredAsset | null;
+  /** Storage key of the uploaded image, or URL of the linked photo, the supplier chose as the profile background. */
+  cover_image: string | null;
   has_sample: boolean;
   sample_file_name: string | null;
   sample_size_bytes: number | null;

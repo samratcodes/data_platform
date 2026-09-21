@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Eye, ImagePlus, Trash2, X } from "lucide-react";
+import { Eye, ImagePlus, Star, Trash2, X } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 /** A selected image: `file` is set for new local picks, `key` for images already saved to storage. */
@@ -13,12 +13,15 @@ const MAX_BYTES = 50_000_000;
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const sizeLabel = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-export default function OfficeImagePicker({ images, onChange, onError, title = "Office and company images", required = false }: {
+export default function OfficeImagePicker({ images, onChange, onError, title = "Office and company images", required = false, coverUrl = null, onCover }: {
   images: OfficeImage[];
   onChange: (images: OfficeImage[]) => void;
   onError: (message: string) => void;
   title?: string;
   required?: boolean;
+  /** The image chosen as the profile background; the first image is used while nothing is chosen. */
+  coverUrl?: string | null;
+  onCover?: (url: string) => void;
 }) {
   const [pending, setPending] = useState<OfficeImage[] | null>(null);
   const [activeUrl, setActiveUrl] = useState<string | null>(null);
@@ -28,6 +31,9 @@ export default function OfficeImagePicker({ images, onChange, onError, title = "
   const totalBytes = images.reduce((sum, image) => sum + image.size, 0);
   const reviewImages = pending ? [...images, ...pending] : images;
   const active = reviewImages.find((image) => image.url === activeUrl) || reviewImages[0];
+  // Until one is chosen, the first image is the background, which is what the profile falls back to.
+  const cover = images.some((image) => image.url === coverUrl) ? coverUrl : images[0]?.url ?? null;
+  const chooseCover = (url: string) => { if (onCover && images.some((image) => image.url === url)) onCover(url); };
 
   // Revoke browser previews when this form is removed after navigation.
   useEffect(() => {
@@ -58,7 +64,9 @@ export default function OfficeImagePicker({ images, onChange, onError, title = "
       if (removed) { URL.revokeObjectURL(removed.url); previewUrls.current.delete(removed.url); }
       setPending((current) => current?.filter((image) => image.url !== url) || null);
     } else {
-      onChange(images.filter((image) => image.url !== url));
+      const remaining = images.filter((image) => image.url !== url);
+      onChange(remaining);
+      if (url === coverUrl && onCover && remaining.length) onCover(remaining[0].url);
       URL.revokeObjectURL(url);
       previewUrls.current.delete(url);
     }
@@ -66,10 +74,10 @@ export default function OfficeImagePicker({ images, onChange, onError, title = "
   };
 
   return <section className={`office-image-picker ${dragging ? "is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); selectFiles(event.dataTransfer.files); }}>
-    <div className="office-image-picker-heading"><span className="wizard-upload-icon"><ImagePlus/></span><div><strong>{title} {required ? <em className="is-required">Required</em> : <em>Optional</em>}</strong><small>JPG, PNG, or WebP · up to 10 images · 50 MB total</small></div></div>
+    <div className="office-image-picker-heading"><span className="wizard-upload-icon"><ImagePlus/></span><div><strong>{title} {required ? <em className="is-required">Required</em> : <em>Optional</em>}</strong><small>JPG, PNG, or WebP · up to 10 images · 50 MB total{onCover ? " · pick one as the profile background" : ""}</small></div></div>
     <div className="office-image-picker-toolbar"><span>{images.length} of {MAX_IMAGES} images · {sizeLabel(totalBytes)} of 50 MB</span><label className="office-image-picker-add"><ImagePlus size={16}/>{images.length ? "Add more images" : "Choose images"}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { selectFiles(event.target.files); event.currentTarget.value = ""; }}/></label></div>
-    {images.length ? <div className="office-image-gallery" aria-label="Selected office images">{images.map((image, index) => <article key={image.url}><button type="button" className="office-image-gallery-view" onClick={() => { setPending([]); setActiveUrl(image.url); }} aria-label={`View image ${index + 1}: ${image.name}`}><Image src={image.url} alt={image.name} fill unoptimized sizes="160px"/><span><Eye size={15}/>View</span></button><div><strong>{image.name}</strong><small>{sizeLabel(image.size)}</small><button type="button" onClick={() => setConfirming(image)} aria-label={`Delete ${image.name}`}><Trash2 size={16}/></button></div></article>)}</div> : <p className="office-image-picker-empty">Your images will appear here after you review and confirm them.</p>}
-    {pending && <div className="office-image-review-backdrop" role="presentation" onClick={closeReview}><div className="office-image-review" role="dialog" aria-modal="true" aria-label="Review office images" onClick={(event) => event.stopPropagation()}><header><div><small>IMAGE REVIEW</small><h3>Review all selected images</h3><p>{reviewImages.length} of 10 images · {sizeLabel(reviewImages.reduce((sum, image) => sum + image.size, 0))} of 50 MB</p></div><button type="button" aria-label="Close image review" onClick={closeReview}><X size={19}/></button></header><div className="office-image-review-main">{active && <div className="office-image-review-hero"><Image src={active.url} alt={active.name} fill unoptimized sizes="(max-width: 800px) 90vw, 600px"/><span>{active.name}</span></div>}<div className="office-image-review-grid">{reviewImages.map((image, index) => <article key={image.url} className={active?.url === image.url ? "active" : ""}><button type="button" onClick={() => setActiveUrl(image.url)} aria-label={`Preview image ${index + 1}: ${image.name}`}><Image src={image.url} alt={image.name} fill unoptimized sizes="120px"/></button><small>{image.name}</small><button type="button" className="office-image-review-delete" onClick={() => setConfirming(image)} aria-label={`Delete ${image.name}`}><Trash2 size={14}/></button></article>)}</div></div><footer><button type="button" onClick={closeReview}>Cancel</button><button type="button" className="office-image-review-confirm" onClick={() => { onChange([...images, ...pending]); setPending(null); setActiveUrl(null); }} disabled={!pending.length}>{pending.length ? `OK · keep ${pending.length} new image${pending.length === 1 ? "" : "s"}` : "Done"}</button></footer></div></div>}
+    {images.length ? <div className="office-image-gallery" aria-label="Selected office images">{images.map((image, index) => <article key={image.url}><button type="button" className="office-image-gallery-view" onClick={() => { setPending([]); setActiveUrl(image.url); }} aria-label={`View image ${index + 1}: ${image.name}`}><Image src={image.url} alt={image.name} fill unoptimized sizes="160px"/><span><Eye size={15}/>View</span></button><div><strong>{image.name}</strong><small>{sizeLabel(image.size)}</small><button type="button" onClick={() => setConfirming(image)} aria-label={`Delete ${image.name}`}><Trash2 size={16}/></button></div>{onCover && (cover === image.url ? <span className="image-cover-badge"><Star size={12}/>Background</span> : <button type="button" className="image-cover-set" onClick={() => chooseCover(image.url)}><Star size={12}/>Set as background</button>)}</article>)}</div> : <p className="office-image-picker-empty">Your images will appear here after you review and confirm them.</p>}
+    {pending && <div className="office-image-review-backdrop" role="presentation" onClick={closeReview}><div className="office-image-review" role="dialog" aria-modal="true" aria-label="Review office images" onClick={(event) => event.stopPropagation()}><header><div><small>IMAGE REVIEW</small><h3>Review all selected images</h3><p>{reviewImages.length} of 10 images · {sizeLabel(reviewImages.reduce((sum, image) => sum + image.size, 0))} of 50 MB</p></div><button type="button" aria-label="Close image review" onClick={closeReview}><X size={19}/></button></header><div className="office-image-review-main">{active && <div className="office-image-review-hero"><Image src={active.url} alt={active.name} fill unoptimized sizes="(max-width: 800px) 90vw, 600px"/><span>{active.name}</span>{onCover && !pending?.length && (cover === active.url ? <em className="image-cover-badge"><Star size={12}/>Profile background</em> : <button type="button" className="image-cover-set" onClick={() => chooseCover(active.url)}><Star size={12}/>Set as background</button>)}</div>}<div className="office-image-review-grid">{reviewImages.map((image, index) => <article key={image.url} className={active?.url === image.url ? "active" : ""}><button type="button" onClick={() => setActiveUrl(image.url)} aria-label={`Preview image ${index + 1}: ${image.name}`}><Image src={image.url} alt={image.name} fill unoptimized sizes="120px"/>{cover === image.url && <i className="image-cover-flag" title="Profile background"><Star size={11}/></i>}</button><small>{image.name}</small><button type="button" className="office-image-review-delete" onClick={() => setConfirming(image)} aria-label={`Delete ${image.name}`}><Trash2 size={14}/></button></article>)}</div></div><footer><button type="button" onClick={closeReview}>Cancel</button><button type="button" className="office-image-review-confirm" onClick={() => { onChange([...images, ...pending]); setPending(null); setActiveUrl(null); }} disabled={!pending.length}>{pending.length ? `OK · keep ${pending.length} new image${pending.length === 1 ? "" : "s"}` : "Done"}</button></footer></div></div>}
     {confirming && <ConfirmDialog title="Delete image?" message={`Remove “${confirming.name}” from your images? You can add it again later.`} onCancel={() => setConfirming(null)} onConfirm={() => { remove(confirming.url); setConfirming(null); }}/>}
   </section>;
 }

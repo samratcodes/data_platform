@@ -10,6 +10,7 @@ import PublicNavigationRail from "@/components/navigation/PublicNavigationRail";
 import { api } from "@/lib/api-client";
 import { homePathFor, type UserRole } from "@/lib/auth/roles";
 import { canAccess, safeNextPath } from "@/lib/auth/routes";
+import { validateBusinessEmail } from "@/lib/validation/email";
 
 export default function AuthForm({ signup = false, defaultRole = "buyer", lockRole = false }: { signup?: boolean; defaultRole?: "buyer" | "supplier"; lockRole?: boolean }) {
   const [error, setError] = useState("");
@@ -35,8 +36,10 @@ export default function AuthForm({ signup = false, defaultRole = "buyer", lockRo
         <form onSubmit={async (event) => {
           event.preventDefault(); setError("");
           if (signup && password !== confirmation) { setError("Passwords do not match yet."); return; }
-          setBusy(true);
           const values = Object.fromEntries(new FormData(event.currentTarget));
+          const emailIssue = validateBusinessEmail(String(values.email || ""));
+          if (emailIssue) { setError(emailIssue); return; }
+          setBusy(true);
           try {
             const result = await api<{ user: { role: UserRole; emailVerifiedAt?: string | null } }>(`/api/auth/${signup ? "signup" : "login"}`, { method: "POST", body: JSON.stringify(values) });
             const { role: signedInRole, emailVerifiedAt } = result.user;
@@ -48,7 +51,7 @@ export default function AuthForm({ signup = false, defaultRole = "buyer", lockRo
           } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to sign in."); setBusy(false); }
         }}>
           {signup && <>{lockRole ? <div className="auth-role-intent"><span>{role === "supplier" ? <Store size={19}/> : <Database size={19}/>}</span><div><strong>{role === "supplier" ? "Data company account" : "Data buyer account"}</strong><small>{role === "supplier" ? "Company verification and facility management" : "Verified provider discovery and sourcing"}</small></div><Link href={alternateSignupHref}>{alternateSignupLabel}</Link></div> : <div className="role-choice" aria-label="Choose account type"><button type="button" aria-pressed={role === "buyer"} className={role === "buyer" ? "active" : ""} onClick={() => setRole("buyer")}><Database size={18}/><span><strong>Data buyer</strong><small>Discover and source datasets</small></span>{role === "buyer" && <Check size={16}/>}</button><button type="button" aria-pressed={role === "supplier"} className={role === "supplier" ? "active" : ""} onClick={() => setRole("supplier")}><Store size={18}/><span><strong>Data supplier</strong><small>List and verify capabilities</small></span>{role === "supplier" && <Check size={16}/>}</button></div>}<input type="hidden" name="role" value={role}/><label>Full name<input name="name" required minLength={2} maxLength={80} autoComplete="name" placeholder="Alex Morgan"/></label></>}
-          <label>Work email<input name="email" required type="email" maxLength={254} autoComplete="email" placeholder="you@company.com"/></label>
+          <label>Work email<input name="email" required type="email" maxLength={254} autoComplete="email" placeholder="you@company.com"/><small className="field-hint">Company email addresses only — Gmail, Yahoo, Outlook, and other personal providers are not accepted.</small></label>
           <label>Password<span className="password-field"><input name="password" required type={showPassword ? "text" : "password"} minLength={signup ? 12 : 1} maxLength={128} autoComplete={signup ? "new-password" : "current-password"} placeholder={signup ? "Create a password (12+ characters)" : "Enter your password"} value={password} onChange={(event) => setPassword(event.target.value)}/><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button></span></label>
           {signup && <><div className="password-strength" aria-live="polite"><div>{[0, 1, 2, 3, 4].map((item) => <i key={item} className={item < strength ? "filled" : ""}/>)}</div><span>{strengthLabel}</span></div><ul className="password-rules"><li className={password.length >= 12 ? "met" : ""}>{password.length >= 12 ? <Check/> : <Circle/>}At least 12 characters</li><li className={strength >= 3 ? "met" : ""}>{strength >= 3 ? <Check/> : <Circle/>}A varied, memorable phrase</li></ul><label>Confirm password<span className="password-field"><input name="confirmation" required type={showPassword ? "text" : "password"} minLength={12} maxLength={128} autoComplete="new-password" placeholder="Type it once more" value={confirmation} onChange={(event) => setConfirmation(event.target.value)}/>{confirmation && (confirmation === password ? <Check className="field-status valid" size={17}/> : <Circle className="field-status" size={14}/>)}</span></label></>}
           {error && <p role="alert" className="form-error">{error}</p>}

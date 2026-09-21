@@ -20,7 +20,7 @@ const facilityColumns = `
   applications.id, applications.business_name, applications.profile_description, applications.maps_url,
   applications.physical_address, applications.city, applications.country, applications.longitude, applications.latitude,
   applications.modalities, applications.capture_environments, applications.hardware_pictures, applications.office_images,
-  applications.official_documents, applications.company_logo, applications.facility_details, applications.provider_slug,
+  applications.official_documents, applications.company_logo, applications.cover_image, applications.facility_details, applications.provider_slug,
   applications.status, applications.admin_notes`;
 
 const listingStats = `
@@ -36,7 +36,7 @@ export async function supplierListings(userId: string) {
     SELECT applications.id, applications.application_kind, applications.business_name, applications.city, applications.country,
            applications.status, applications.verification_level, applications.admin_notes, applications.submitted_at,
            applications.facility_details, applications.modalities, applications.office_images, applications.hardware_pictures,
-           applications.company_logo, applications.provider_slug, ${listingStats}
+           applications.company_logo, applications.cover_image, applications.provider_slug, ${listingStats}
     FROM supplier_applications applications
     LEFT JOIN providers ON providers.slug = applications.provider_slug AND providers.owner_id = applications.user_id
     WHERE applications.user_id = $1

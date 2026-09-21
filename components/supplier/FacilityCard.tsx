@@ -24,7 +24,10 @@ export function FacilityAvatar({ photoKey, companyLogo, size = 56, approved = fa
 /** Summary card for one facility; opens that facility's dashboard. */
 export default function FacilityCard({ listing, companyLogo }: { listing: SupplierListing; companyLogo?: string | null }) {
   const details = parseFacilityDetails(listing.facility_details);
-  const cover = listing.office_images[0] ? (listing.status === "approved" ? `/api/company-assets?public=1&key=${encodeURIComponent(listing.office_images[0].key)}` : assetUrl(listing.office_images[0].key)) : listing.hardware_pictures[0];
+  // The card leads with the image chosen as the profile background, falling back to the first photo.
+  const coverAsset = listing.office_images.find((asset) => asset.key === listing.cover_image) ?? listing.office_images[0];
+  const cover = listing.cover_image && listing.hardware_pictures.includes(listing.cover_image) ? listing.cover_image
+    : coverAsset ? (listing.status === "approved" ? `/api/company-assets?public=1&key=${encodeURIComponent(coverAsset.key)}` : assetUrl(coverAsset.key)) : listing.hardware_pictures[0];
   const state = facilityState(listing);
   const dashboard = `/supplier/facilities/${listing.id}`;
   return <article className="factory-card" data-state={state}>

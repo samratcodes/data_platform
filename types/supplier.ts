@@ -21,6 +21,8 @@ export type FacilityRecord = {
   office_images: StoredAsset[];
   official_documents: StoredAsset[];
   company_logo: StoredAsset | null;
+  /** Storage key of the uploaded image, or URL of the linked photo, shown as the profile background. */
+  cover_image: string | null;
   facility_details: unknown;
   provider_slug: string | null;
   status: ReviewStatus;
@@ -43,6 +45,7 @@ export type SupplierListing = {
   office_images: StoredAsset[];
   hardware_pictures: string[];
   company_logo: StoredAsset | null;
+  cover_image: string | null;
   provider_slug: string | null;
   listing_status: string | null;
   profile_views: number;

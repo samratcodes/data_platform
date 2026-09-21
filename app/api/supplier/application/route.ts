@@ -25,7 +25,7 @@ export async function GET() {
            longitude, latitude, hardware_pictures, linkedin_url, twitter_url, huggingface_url,
            website_url, provider_type, modalities, robotics_types, profile_description, capacity,
            capture_environments, facility_details, provider_slug, office_images, official_documents,
-           company_logo, company_focus, sample_file_name, sample_mime_type,
+           company_logo, cover_image, company_focus, sample_file_name, sample_mime_type,
            sample_size_bytes, (sample_data IS NOT NULL) AS has_sample, status,
            verification_level, admin_notes, submitted_at, reviewed_at
     FROM supplier_applications

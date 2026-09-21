@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getUser } from "@/lib/auth/session";
 import { query } from "@/lib/db/client";
 import { deleteCompanyAsset, readCompanyAsset, uploadCompanyAsset } from "@/lib/integrations/cloud-storage";
-import { isUuid } from "@/lib/security";
+import { isUuid, readJsonObject } from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -10,7 +10,7 @@ const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const documentTypes = new Set([...imageTypes, "application/pdf"]);
 const MAX_LOGO_BYTES = 5_000_000;
 type Asset = { key: string; name: string; contentType: string; size?: number; type?: string };
-type Application = { id: string; application_kind: "company" | "facility"; office_images: Asset[]; official_documents: Asset[]; company_logo: Asset | null; hardware_pictures: string[]; status: string };
+type Application = { id: string; application_kind: "company" | "facility"; office_images: Asset[]; official_documents: Asset[]; company_logo: Asset | null; hardware_pictures: string[]; cover_image: string | null; provider_slug: string | null; status: string };
 type Kind = "office" | "document" | "logo";
 const safeName = (value: string) => value.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120) || "upload";
 const assetUrl = (key: string, isPublic = false) => `/api/company-assets?${isPublic ? "public=1&" : ""}key=${encodeURIComponent(key)}`;
@@ -21,9 +21,44 @@ const uploadError = (kind: Kind) => kind === "office"
 // Facilities store their optional logo and agreement documents beside their images.
 const folderFor = (application: Application, kind: Kind) => application.application_kind === "company" ? kind : kind === "office" ? "facility" : `facility-${kind}`;
 
+/**
+ * The profile background. It is the storage key of an uploaded image or the URL of a linked photo,
+ * and it falls back to the first uploaded image so a listing always has a usable background.
+ */
+const coverCandidates = (images: Asset[], linked: string[]) => [...images.map((asset) => asset.key), ...linked];
+const resolveCover = (chosen: string | null, images: Asset[], linked: string[]) => {
+  const candidates = coverCandidates(images, linked);
+  return chosen && candidates.includes(chosen) ? chosen : candidates[0] ?? null;
+};
+const saveCover = (applicationId: string, cover: string | null) => query("UPDATE supplier_applications SET cover_image = $1 WHERE id = $2", [cover, applicationId]);
+/** Records the background and points the live listing at it whenever that image is already public. */
+const syncCover = async (application: Application, userId: string, cover: string | null) => {
+  await saveCover(application.id, cover);
+  if (cover) await leadListingWith(application, userId, cover);
+};
+/** The public address of a background: uploaded images are served from storage, linked photos keep their own URL. */
+const coverUrl = (cover: string) => cover.startsWith("http") ? cover : assetUrl(cover, true);
+
+/**
+ * Leads the live listing with the chosen background, so the operator profile, map cards, and
+ * related cards all use it right away. Only an image the listing already publishes can move to
+ * the front; anything still awaiting review is applied when an admin approves the listing.
+ */
+async function leadListingWith(application: Application, userId: string, cover: string) {
+  if (!application.provider_slug) return false;
+  const url = coverUrl(cover);
+  const provider = (await query<{ profile: { photos?: string[] } | null }>("SELECT profile FROM providers WHERE slug = $1 AND owner_id = $2 AND status = 'approved'", [application.provider_slug, userId])).rows[0];
+  const photos = Array.isArray(provider?.profile?.photos) ? provider.profile.photos : [];
+  if (!photos.includes(url)) return false;
+  if (photos[0] === url) return true;
+  const ordered = [url, ...photos.filter((photo) => photo !== url)];
+  await query("UPDATE providers SET profile = jsonb_set(profile, '{photos}', $1::jsonb), media = jsonb_set(media, '{src}', $2::jsonb), updated_at = NOW() WHERE slug = $3", [JSON.stringify(ordered), JSON.stringify(url), application.provider_slug]);
+  return true;
+}
+
 /** The supplier's company application, or one of their facility applications when an id is given. */
 async function applicationFor(userId: string, applicationId?: string | null) {
-  const columns = "id, application_kind, office_images, official_documents, company_logo, hardware_pictures, status";
+  const columns = "id, application_kind, office_images, official_documents, company_logo, hardware_pictures, cover_image, provider_slug, status";
   if (applicationId) {
     if (!isUuid(applicationId)) return undefined;
     return (await query<Application>(`SELECT ${columns} FROM supplier_applications WHERE id = $1 AND user_id = $2`, [applicationId, userId])).rows[0];
@@ -57,6 +92,8 @@ export async function POST(request: Request) {
   if (!kind) return Response.json({ error: "Unknown upload type." }, { status: 400 });
   const documentType = typeof form.get("documentType") === "string" ? String(form.get("documentType")).trim().slice(0, 120) : "";
   const replaceKey = typeof form.get("replaceKey") === "string" ? String(form.get("replaceKey")) : "";
+  // Which of the uploaded office images the supplier picked as the profile background.
+  const coverIndex = Number(form.get("coverIndex"));
   const files = form.getAll("files").filter((item): item is File => item instanceof File && item.size > 0);
   const allowed = kind === "document" ? documentTypes : imageTypes;
   const limit = kind === "office" ? 10 : kind === "logo" ? 1 : 5;
@@ -80,10 +117,16 @@ export async function POST(request: Request) {
     // Keep the replacement in the same gallery position as the image it replaces.
     const images = application.office_images.map((asset) => asset.key === replaceKey ? assets[0] : asset);
     await query("UPDATE supplier_applications SET office_images = $1::jsonb, status = 'pending', reviewed_at = NULL WHERE id = $2", [JSON.stringify(images), application.id]);
+    // A replaced background stays the background.
+    await syncCover(application, user.id, resolveCover(application.cover_image === replaceKey ? assets[0].key : application.cover_image, images, application.hardware_pictures));
     await removeStoredObject(replaceKey);
   } else {
     const column = kind === "office" ? "office_images" : "official_documents";
     await query(`UPDATE supplier_applications SET ${column} = COALESCE(${column}, '[]'::jsonb) || $1::jsonb, status = 'pending', reviewed_at = NULL WHERE id = $2`, [JSON.stringify(assets), application.id]);
+    if (kind === "office") {
+      const chosen = Number.isInteger(coverIndex) && coverIndex >= 0 && coverIndex < assets.length ? assets[coverIndex].key : application.cover_image;
+      await syncCover(application, user.id, resolveCover(chosen, [...application.office_images, ...assets], application.hardware_pictures));
+    }
   }
   return Response.json({ assets: assets.map((asset) => ({ ...asset, url: assetUrl(asset.key) })) }, { status: 201 });
 }
@@ -99,7 +142,9 @@ export async function DELETE(request: Request) {
   if (photo) {
     // Linked photos (for example imported from Google Maps) are URLs, not stored files.
     if (!application.hardware_pictures.includes(photo)) return Response.json({ error: "Photo not found." }, { status: 404 });
-    await query("UPDATE supplier_applications SET hardware_pictures = $1::jsonb, status = 'pending', reviewed_at = NULL WHERE id = $2", [JSON.stringify(application.hardware_pictures.filter((item) => item !== photo)), application.id]);
+    const remaining = application.hardware_pictures.filter((item) => item !== photo);
+    await query("UPDATE supplier_applications SET hardware_pictures = $1::jsonb, status = 'pending', reviewed_at = NULL WHERE id = $2", [JSON.stringify(remaining), application.id]);
+    await syncCover(application, user.id, resolveCover(application.cover_image, application.office_images, remaining));
     return Response.json({ ok: true });
   }
   if (!key.startsWith(`company-submissions/${application.id}/`)) return Response.json({ error: "Asset not found." }, { status: 404 });
@@ -113,8 +158,27 @@ export async function DELETE(request: Request) {
   const column = application.office_images.some((asset) => asset.key === key) ? "office_images" : application.official_documents.some((asset) => asset.key === key) ? "official_documents" : "";
   if (!column) return Response.json({ error: "Asset not found." }, { status: 404 });
   await query(`UPDATE supplier_applications SET ${column} = COALESCE((SELECT jsonb_agg(entry) FROM jsonb_array_elements(${column}) entry WHERE entry->>'key' <> $1), '[]'::jsonb), status = 'pending', reviewed_at = NULL WHERE id = $2`, [key, application.id]);
+  // Deleting the background image hands the role to the next remaining image.
+  if (column === "office_images") await syncCover(application, user.id, resolveCover(application.cover_image, application.office_images.filter((asset) => asset.key !== key), application.hardware_pictures));
   await removeStoredObject(key);
   return Response.json({ ok: true });
+}
+
+/** Chooses which uploaded image or linked photo is the profile background. */
+export async function PATCH(request: Request) {
+  const user = await getUser();
+  if (!user || user.role !== "supplier") return Response.json({ error: "Supplier access required." }, { status: 401 });
+  const parsed = await readJsonObject(request, 4_096);
+  if (parsed.response) return parsed.response;
+  const cover = typeof parsed.body.cover === "string" ? parsed.body.cover : "";
+  const application = await applicationFor(user.id, typeof parsed.body.applicationId === "string" ? parsed.body.applicationId : null);
+  if (!application) return Response.json({ error: "Application not found." }, { status: 404 });
+  if (!coverCandidates(application.office_images, application.hardware_pictures).includes(cover)) return Response.json({ error: "Choose one of this listing's images as the background." }, { status: 400 });
+  // Reordering images the public profile already shows needs no new review; anything else waits for approval.
+  const live = await leadListingWith(application, user.id, cover);
+  if (live) await saveCover(application.id, cover);
+  else if (cover !== application.cover_image) await query("UPDATE supplier_applications SET cover_image = $1, status = 'pending', reviewed_at = NULL WHERE id = $2", [cover, application.id]);
+  return Response.json({ ok: true, cover, live });
 }
 
 export async function GET(request: Request) {

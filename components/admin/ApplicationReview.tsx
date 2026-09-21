@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, BadgeCheck, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Globe, History, LoaderCircle, MapPin, ShieldCheck, UserRound, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BadgeCheck, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileText, Globe, History, LoaderCircle, MapPin, ShieldCheck, Star, UserRound, XCircle } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EmptyState from "@/components/ui/EmptyState";
@@ -15,7 +15,7 @@ import { isPublicAsset } from "@/lib/image";
 import { factoryCategoryLabel, formatCount, parseFacilityDetails, recordingConsentOptions } from "@/lib/facility";
 
 type Decision = "approved" | "rejected";
-type Photo = { src: string; label: string };
+type Photo = { src: string; label: string; isCover?: boolean };
 
 const focusLabels: Record<string, string> = { collection: "Data collection", platform: "Data platform", embodied: "Embodied AI" };
 const actionLabels: Record<string, string> = { "application.approved": "Approved", "application.rejected": "Rejected", "application.pending": "Moved to pending" };
@@ -52,7 +52,7 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: Photo[]; index:
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [index, onIndex, photos.length]);
-  return <Modal title={`${photo.label} · ${index + 1} of ${photos.length}`} onClose={onClose} wide>
+  return <Modal title={`${photo.label}${photo.isCover ? " · profile background" : ""} · ${index + 1} of ${photos.length}`} onClose={onClose} wide>
     <div className="lightbox">
       <div className="lightbox-stage"><Image src={photo.src} alt={photo.label} fill unoptimized={!isPublicAsset(photo.src)} sizes="(max-width: 900px) 92vw, 760px"/></div>
       {photos.length > 1 && <div className="lightbox-controls">
@@ -60,6 +60,24 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: Photo[]; index:
         <a className="secondary-button" href={photo.src} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Open original</a>
         <button type="button" className="secondary-button" onClick={() => onIndex((index + 1) % photos.length)}>Next<ChevronRight size={16}/></button>
       </div>}
+    </div>
+  </Modal>;
+}
+
+/** Opens a submitted document in a dialog on the review page, so the reviewer never leaves the application. */
+function DocumentPreview({ document, onClose }: { document: ApplicationDetail["official_documents"][number]; onClose: () => void }) {
+  const src = assetUrl(document.key);
+  const isPdf = document.contentType === "application/pdf";
+  return <Modal title={document.type || "Document"} onClose={onClose} wide>
+    <div className="document-preview">
+      <p className="document-preview-meta">{document.name}{document.size ? ` · ${formatBytes(document.size)}` : ""} · {isPdf ? "PDF" : "Image"}</p>
+      {isPdf
+        ? <iframe className="document-preview-frame" src={src} title={document.name}/>
+        : <div className="document-preview-stage"><Image src={src} alt={document.name} fill unoptimized sizes="(max-width: 900px) 92vw, 760px"/></div>}
+      <div className="document-preview-actions">
+        <a className="secondary-button" href={src} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Open in a new tab</a>
+        <a className="secondary-button" href={src} download={document.name}><Download size={15}/>Download</a>
+      </div>
     </div>
   </Modal>;
 }
@@ -74,6 +92,7 @@ export default function ApplicationReview({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<ApplicationDetail["official_documents"][number] | null>(null);
 
   const load = useCallback(() => api<{ application: ApplicationDetail; history: AuditEntry[] }>(`/api/admin/applications/${id}`).then((data) => {
     setApplication(data.application);
@@ -96,10 +115,12 @@ export default function ApplicationReview({ id }: { id: string }) {
   const logoKey = application.company_logo?.key ?? null;
   // Approved images are public, so they load resized; pending ones need the admin's session.
   const imageUrl = (key: string) => application.status === "approved" ? `/api/company-assets?public=1&key=${encodeURIComponent(key)}` : assetUrl(key);
+  // The supplier picks one image as the profile background; without a pick the first image is used.
   const photos: Photo[] = [
-    ...application.office_images.map((asset) => ({ src: imageUrl(asset.key), label: asset.name })),
-    ...application.hardware_pictures.map((src, index) => ({ src, label: `Linked photo ${index + 1}` })),
+    ...application.office_images.map((asset) => ({ src: imageUrl(asset.key), label: asset.name, isCover: asset.key === application.cover_image })),
+    ...application.hardware_pictures.map((src, index) => ({ src, label: `Linked photo ${index + 1}`, isCover: src === application.cover_image })),
   ];
+  if (photos.length && !photos.some((photo) => photo.isCover)) photos[0].isCover = true;
   const links = [["Website", application.website_url], ["LinkedIn", application.linkedin_url], ["X / Twitter", application.twitter_url], ["Hugging Face", application.huggingface_url]].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
   const decide = async (status: Decision) => {
@@ -160,9 +181,10 @@ export default function ApplicationReview({ id }: { id: string }) {
           </dl>
         </Section>}
 
-        <Section title="Location" icon={<MapPin size={17}/>} aside={application.maps_url && <a className="text-link" href={application.maps_url} target="_blank" rel="noreferrer">Open in Google Maps<ExternalLink size={13}/></a>}>
+        <Section title={isCompany ? "Legal address" : "Location"} icon={<MapPin size={17}/>} aside={application.maps_url && <a className="text-link" href={application.maps_url} target="_blank" rel="noreferrer">Open in Google Maps<ExternalLink size={13}/></a>}>
+          {isCompany && <p className="review-note">The legal address below must match the address on the company registration document.</p>}
           <dl className="review-fields">
-            <Field label="Address">{application.physical_address}</Field>
+            <Field label={isCompany ? "Legal address" : "Address"}>{application.physical_address}</Field>
             <Field label="City / country">{(application.city || application.country) && `${application.city ?? "—"}, ${application.country ?? "—"}`}</Field>
             <Field label="Coordinates">{application.latitude !== null && application.longitude !== null && `${application.latitude.toFixed(5)}, ${application.longitude.toFixed(5)}`}</Field>
           </dl>
@@ -175,16 +197,18 @@ export default function ApplicationReview({ id }: { id: string }) {
           </div>
           {photos.length ? <div className="review-gallery">{photos.map((photo, index) => <button key={photo.src} type="button" onClick={() => setLightbox(index)} aria-label={`Open ${photo.label}`}>
             <Image src={photo.src} alt={photo.label} fill unoptimized={!isPublicAsset(photo.src)} sizes="200px"/>
+            {photo.isCover && <i className="review-gallery-cover"><Star size={11}/>Background</i>}
             <span>{photo.label}</span>
           </button>)}</div> : <p className="cell-muted">No images were submitted.</p>}
         </Section>
 
-        <Section title={isCompany ? "Documents and sample" : "Signed facility agreement"} icon={<FileText size={17}/>} aside={<span className="section-count">{application.official_documents.length} document{application.official_documents.length === 1 ? "" : "s"}</span>}>
+        <Section title={isCompany ? "Company registration document" : "Signed facility agreement"} icon={<FileText size={17}/>} aside={<span className="section-count">{application.official_documents.length} document{application.official_documents.length === 1 ? "" : "s"}</span>}>
+          {isCompany && <p className="review-note">Check that the registration document shows a valid legal address matching the legal address on this application.</p>}
           {application.official_documents.length ? <ul className="review-documents">{application.official_documents.map((document) => <li key={document.key}>
             <FileText size={18}/>
-            <span><strong>{document.type || (isCompany ? "Official company document" : "Facility document")}</strong><small>{document.name}{document.size ? ` · ${formatBytes(document.size)}` : ""} · {document.contentType === "application/pdf" ? "PDF" : "Image"}</small></span>
-            <a className="secondary-button" href={assetUrl(document.key)} target="_blank" rel="noreferrer"><ExternalLink size={14}/>Open</a>
-          </li>)}</ul> : <p className="cell-muted">{isCompany ? "No official documents were submitted." : "No signed agreement was submitted."}</p>}
+            <span><strong>{document.type || (isCompany ? "Company registration document" : "Facility document")}</strong><small>{document.name}{document.size ? ` · ${formatBytes(document.size)}` : ""} · {document.contentType === "application/pdf" ? "PDF" : "Image"}</small></span>
+            <button type="button" className="secondary-button" onClick={() => setDocumentPreview(document)}><Eye size={14}/>Open</button>
+          </li>)}</ul> : <p className="cell-muted">{isCompany ? "No company registration document was submitted." : "No signed agreement was submitted."}</p>}
           {isCompany && application.has_sample && <a className="secondary-button review-sample" href={`/api/admin/applications/${application.id}/sample`}><Download size={15}/>Download sample{application.sample_file_name ? `: ${application.sample_file_name}` : ""}{application.sample_size_bytes ? ` (${formatBytes(application.sample_size_bytes)})` : ""}</a>}
         </Section>
 
@@ -229,5 +253,6 @@ export default function ApplicationReview({ id }: { id: string }) {
     </div>
 
     {lightbox !== null && photos[lightbox] && <Lightbox photos={photos} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)}/>}
+    {documentPreview && <DocumentPreview document={documentPreview} onClose={() => setDocumentPreview(null)}/>}
   </section>;
 }

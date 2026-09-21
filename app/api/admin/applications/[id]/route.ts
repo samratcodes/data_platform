@@ -66,7 +66,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
       hardware_pictures: string[]; linkedin_url: string | null; twitter_url: string | null;
       huggingface_url: string | null; website_url: string | null; profile_description: string;
       capacity: string; capture_environments: string[]; provider_slug: string | null;
-      office_images: StoredAsset[]; company_logo: StoredAsset | null; facility_details: unknown;
+      office_images: StoredAsset[]; company_logo: StoredAsset | null; cover_image: string | null; facility_details: unknown;
     }>("SELECT * FROM supplier_applications WHERE id = $1 FOR UPDATE", [id])).rows[0];
     if (!application) {
       await client.query("ROLLBACK");
@@ -112,6 +112,11 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
         }
         await client.query("UPDATE supplier_applications SET hardware_pictures = $1::jsonb WHERE id = $2", [JSON.stringify(mapPhotos), application.id]);
       }
+      // The supplier's chosen background leads the gallery, so it becomes the profile hero and map card image.
+      const cover = application.cover_image && application.office_images.some((asset) => asset.key === application.cover_image)
+        ? publicAssetUrl(application.cover_image)
+        : application.cover_image && application.hardware_pictures.includes(application.cover_image) ? application.cover_image : null;
+      if (cover) mapPhotos = [cover, ...mapPhotos.filter((photo) => photo !== cover)];
       // Facilities show their own optional logo, falling back to their company's logo.
       const logo = application.company_logo ?? (isFacility
         ? (await client.query<{ company_logo: StoredAsset | null }>("SELECT company_logo FROM supplier_applications WHERE user_id = $1 AND application_kind = 'company' ORDER BY submitted_at DESC LIMIT 1", [application.user_id])).rows[0]?.company_logo

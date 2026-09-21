@@ -106,3 +106,15 @@
   .cell-action .table-action { width:100%; justify-content:center; }
   .cell-notes { max-width:none; }
 }
+
+/* Profile background picker, shared by the image wizard steps and the saved-media manager. */
+.image-cover-badge,.image-cover-set { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:28px; margin:8px 10px 0; padding:0 9px; border-radius:8px; font-size:11px; font-weight:750; }
+.image-cover-badge { border:1px solid #b7d9ca; color:#087a60; background:#eaf7f2; font-style:normal; }
+.image-cover-set { border:1px solid #dce9e3; color:#4f6d61; background:#fff; cursor:pointer; }
+.image-cover-set:hover:not(:disabled) { border-color:#b7d9ca; color:#087a60; background:#f4fbf8; }
+.image-cover-set:disabled { opacity:.5; }
+.image-cover-flag { display:grid; position:absolute; top:7px; left:7px; width:20px; height:20px; place-items:center; border-radius:6px; color:#087a60; background:#ffffffe8; }
+.office-image-gallery article > .image-cover-badge,.office-image-gallery article > .image-cover-set { display:flex; width:calc(100% - 20px); margin:0 10px 10px; }
+.media-manager-grid article > .image-cover-badge,.media-manager-grid article > .image-cover-set { justify-self:stretch; margin:8px 11px 0; }
+.media-manager-thumb > .image-cover-flag { top:8px; left:8px; }
+.office-image-review-hero > .image-cover-badge,.office-image-review-hero > .image-cover-set { position:absolute; top:10px; right:10px; margin:0; }

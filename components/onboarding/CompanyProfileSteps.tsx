@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Building2, Check, Image as ImageIcon, MapPinned, Mic, Radio, Video } from "lucide-react";
+import { Building2, Check, FileText, Image as ImageIcon, MapPinned, Mic, Radio, Video } from "lucide-react";
 import FacilityLocationPicker, { type PickedLocation } from "./FacilityLocationPicker";
 import CompanyLogoPicker, { type CompanyLogo } from "./CompanyLogoPicker";
 import OfficeImagePicker, { type OfficeImage } from "./OfficeImagePicker";
@@ -17,12 +17,13 @@ export const companyFocusCards = [{ value: "collection", title: "Data collection
 export const emptyCompanyProfile = { businessName: "", description: "", websiteUrl: "", mapsUrl: "", physicalAddress: "", city: "", country: "", longitude: "", latitude: "", focus: "collection", modalities: [] as string[], photos: [] as string[] };
 
 export type CompanyProfileValues = typeof emptyCompanyProfile;
-export type CompanyEvidence = { logo: CompanyLogo | null; officeImages: OfficeImage[]; documents: OfficialDocument[] };
+/** `coverUrl` is the local URL of the office image chosen as the profile background. */
+export type CompanyEvidence = { logo: CompanyLogo | null; officeImages: OfficeImage[]; documents: OfficialDocument[]; coverUrl?: string | null };
 export type CompanyFieldKey = Exclude<keyof CompanyProfileValues, "photos"> | "logo" | "documents" | "location";
 export type CompanyFieldErrors = Partial<Record<CompanyFieldKey, string>>;
 
-export const companyStepTitles = (profileStage: 0 | 1) => [profileStage === 0 ? "Tell us about your company" : "Add your logo, office images, and official documents", "What data can you provide?", "Where is your company located?"];
-export const companyStepDescriptions = (profileStage: 0 | 1) => [profileStage === 0 ? "Start with the public-facing details buyers and reviewers should understand." : "Your logo is required and appears on your map pin and public profile after approval. Office images and official documents help us validate your company and are only visible to reviewers.", "Choose each capability your company can supply today.", "Search an address, paste a Google Maps location, or place the pin exactly where your company is based."];
+export const companyStepTitles = (profileStage: 0 | 1) => [profileStage === 0 ? "Tell us about your company" : "Add your logo, office images, and company registration document", "What data can you provide?", "Where is your company registered?"];
+export const companyStepDescriptions = (profileStage: 0 | 1) => [profileStage === 0 ? "Start with the public-facing details buyers and reviewers should understand." : "Your logo is required and appears on your map pin and public profile after approval. Your company registration document must show a valid legal address, and is only visible to reviewers.", "Choose each capability your company can supply today.", "Enter the legal address shown on your company registration document, then place the pin on that address."];
 
 export const validHttpsUrl = (value: string) => {
   try {
@@ -47,12 +48,15 @@ export function validateCompanyStep(step: number, profileStage: 0 | 1, values: C
     if (values.description.trim().length < 20) issues.description = "Describe your company in at least 20 characters.";
   }
   if (step === 0 && profileStage === 1 && !hasLogo) issues.logo = "Upload your company logo. It is shown on the map and your public profile.";
-  if (step === 0 && profileStage === 1 && documents.some((document) => document.type.trim().length < 2)) issues.documents = "Name the type of each selected document.";
+  if (step === 0 && profileStage === 1) {
+    if (!documents.length) issues.documents = "Upload your company registration document. It must show your valid legal address.";
+    else if (documents.some((document) => document.type.trim().length < 2)) issues.documents = "Name the type of each uploaded document.";
+  }
   if (step === 1 && !values.modalities.length) issues.modalities = "Select at least one data capability.";
   if (step === 2) {
     if (!validHttpsUrl(values.websiteUrl.trim())) issues.websiteUrl = "Enter a valid company website URL beginning with https://.";
     if (!validGoogleMapsUrl(values.mapsUrl.trim())) issues.mapsUrl = "Select a location on the map or paste a valid Google Maps URL.";
-    if (values.physicalAddress.trim().length < 5) issues.physicalAddress = "Enter the full physical address.";
+    if (values.physicalAddress.trim().length < 5) issues.physicalAddress = "Enter the full legal address exactly as it appears on your company registration document.";
     if (values.city.trim().length < 2) issues.city = "Enter the city.";
     if (values.country.trim().length < 2) issues.country = "Enter the country.";
     if (!values.longitude || !values.latitude || Math.abs(Number(values.longitude)) > 180 || Math.abs(Number(values.latitude)) > 90) issues.location = "Search for a location or place the pin on the map.";
@@ -71,18 +75,22 @@ export function mergeCompanyLocation<T extends LocationFields>(current: T, locat
  * Uploads new logo, images, and documents for the signed-in supplier's company application,
  * or for one of their facilities when `applicationId` is given.
  */
-export async function uploadCompanyEvidence({ logo, officeImages, documents }: CompanyEvidence, applicationId?: string) {
-  const send = async (kind: "logo" | "office" | "document", files: File[], documentType = "") => {
+export async function uploadCompanyEvidence({ logo, officeImages, documents, coverUrl }: CompanyEvidence, applicationId?: string) {
+  const send = async (kind: "logo" | "office" | "document", files: File[], extra: Record<string, string> = {}) => {
     if (!files.length) return;
-    const body = new FormData(); body.set("kind", kind); if (applicationId) body.set("applicationId", applicationId); if (documentType) body.set("documentType", documentType);
+    const body = new FormData(); body.set("kind", kind); if (applicationId) body.set("applicationId", applicationId);
+    Object.entries(extra).forEach(([name, value]) => body.set(name, value));
     files.forEach((file) => body.append("files", file));
     const response = await fetch("/api/company-assets", { method: "POST", body });
     const data = await response.json().catch(() => ({})) as { error?: string };
     if (!response.ok) throw new Error(data.error || "The company evidence upload could not finish.");
   };
   if (logo?.file) await send("logo", [logo.file]);
-  await send("office", officeImages.flatMap((image) => image.file ? [image.file] : []));
-  for (const document of documents) if (document.file) await send("document", [document.file], document.type.trim());
+  // The background is sent as the position of the chosen file within this upload.
+  const newImages = officeImages.filter((image) => image.file);
+  const coverIndex = newImages.findIndex((image) => image.url === coverUrl);
+  await send("office", newImages.map((image) => image.file!), coverIndex >= 0 ? { coverIndex: String(coverIndex) } : {});
+  for (const document of documents) if (document.file) await send("document", [document.file], { documentType: document.type.trim() });
 }
 
 export default function CompanyProfileStep({ step, profileStage, values, onChange, onLocation, evidence, onEvidence, fieldErrors, showTypeErrors, onError, savedMedia }: {
@@ -113,26 +121,26 @@ export default function CompanyProfileStep({ step, profileStage, values, onChang
   if (step === 0) return <div className="company-wizard-fields company-evidence-fields">
     {savedMedia ?? <>
       <CompanyLogoPicker logo={evidence.logo} onChange={(logo) => onEvidence({ ...evidence, logo })} onError={onError} error={fieldError("logo")}/>
-      <OfficeImagePicker images={evidence.officeImages} onChange={(officeImages) => onEvidence({ ...evidence, officeImages })} onError={onError}/>
+      <OfficeImagePicker images={evidence.officeImages} onChange={(officeImages) => onEvidence({ ...evidence, officeImages })} onError={onError} coverUrl={evidence.coverUrl} onCover={(coverUrl) => onEvidence({ ...evidence, coverUrl })}/>
     </>}
     {savedMedia && fieldError("logo") && <p id="logo-error" className="wizard-section-error" role="alert">{fieldError("logo")}</p>}
-    <OfficialDocumentPicker documents={evidence.documents} onChange={(documents) => onEvidence({ ...evidence, documents })} onError={onError} showTypeErrors={showTypeErrors}/>
-    {fieldError("documents") && <p className="wizard-section-error">{fieldError("documents")}</p>}
+    <OfficialDocumentPicker title="Company registration document" required defaultType="Company registration document" typePlaceholder="e.g. Certificate of incorporation" hint={<>Upload the official registration certificate of your company. It must clearly show your company name and a valid legal address — the same legal address you enter in the location step. PDF or image, 10 MB maximum per file.</>} documents={evidence.documents} onChange={(documents) => onEvidence({ ...evidence, documents })} onError={onError} showTypeErrors={showTypeErrors} error={fieldError("documents")}/>
   </div>;
 
   if (step === 1) return <div><span className="wizard-section-label">Select all that apply</span><div className={`wizard-capability-grid ${fieldError("modalities") ? "has-error" : ""}`}>{companyCapabilities.map(({ value, icon: Icon, detail }) => <button type="button" key={value} className={values.modalities.includes(value) ? "selected" : ""} onClick={() => toggleModality(value)}><Icon/><span><strong>{value}</strong><small>{detail}</small></span>{values.modalities.includes(value) && <i><Check/></i>}</button>)}</div>{fieldError("modalities") && <p className="wizard-section-error">{fieldError("modalities")}</p>}</div>;
 
   return <div className="company-wizard-fields">
+    <p className="wizard-legal-address-note"><FileText/> Enter the legal address of your company exactly as it is written on the company registration document you uploaded. Reviewers check that the two match.</p>
     <label className={`wizard-input-card ${fieldError("websiteUrl") ? "has-error" : ""}`}><span>Company website</span><input type="url" value={values.websiteUrl} onChange={(event) => onChange("websiteUrl", event.target.value)} placeholder="https://company.com" {...errorProps("websiteUrl")}/>{errorText("websiteUrl")}</label>
-    <div className={`wizard-location-picker ${fieldError("location") ? "has-error" : ""}`}><span className="wizard-section-label">Find or pinpoint your company</span><FacilityLocationPicker longitude={values.longitude} latitude={values.latitude} onChange={onLocation}/>{fieldError("location") && <p className="wizard-section-error">{fieldError("location")}</p>}</div>
+    <div className={`wizard-location-picker ${fieldError("location") ? "has-error" : ""}`}><span className="wizard-section-label">Find or pinpoint your legal address</span><FacilityLocationPicker longitude={values.longitude} latitude={values.latitude} onChange={onLocation}/>{fieldError("location") && <p className="wizard-section-error">{fieldError("location")}</p>}</div>
     <div className="wizard-field-grid">
-      <label className={`wizard-input-card ${fieldError("physicalAddress") ? "has-error" : ""}`}><span>Physical address</span><input value={values.physicalAddress} onChange={(event) => onChange("physicalAddress", event.target.value)} placeholder="Street address" {...errorProps("physicalAddress")}/>{errorText("physicalAddress")}</label>
+      <label className={`wizard-input-card ${fieldError("physicalAddress") ? "has-error" : ""}`}><span>Legal address</span><input value={values.physicalAddress} onChange={(event) => onChange("physicalAddress", event.target.value)} placeholder="Legal address on your registration document" {...errorProps("physicalAddress")}/>{errorText("physicalAddress")}</label>
       <label className={`wizard-input-card ${fieldError("mapsUrl") ? "has-error" : ""}`}><span>Google Maps location</span><input type="url" value={values.mapsUrl} onChange={(event) => onChange("mapsUrl", event.target.value)} placeholder="Added when you search or pin a location" {...errorProps("mapsUrl")}/>{errorText("mapsUrl")}</label>
     </div>
     <div className="wizard-field-grid">
       {(["city", "country"] as const).map((field) => <label className={`wizard-input-card ${fieldError(field) ? "has-error" : ""}`} key={field}><span>{field === "city" ? "City" : "Country"}</span><input value={values[field]} onChange={(event) => onChange(field, event.target.value)} placeholder={field === "city" ? "Kathmandu" : "Nepal"} {...errorProps(field)}/>{errorText(field)}</label>)}
       {(["longitude", "latitude"] as const).map((field) => <label className="wizard-input-card" key={field}><span>{field === "longitude" ? "Longitude" : "Latitude"}</span><input readOnly value={values[field]} placeholder={field === "longitude" ? "85.3240" : "27.7172"}/></label>)}
     </div>
-    <p className="wizard-location-note"><MapPinned/> We use the exact pin only to verify your company location before it appears on the map.</p>
+    <p className="wizard-location-note"><MapPinned/> We use the exact pin only to verify your registered legal address before it appears on the map.</p>
   </div>;
 }

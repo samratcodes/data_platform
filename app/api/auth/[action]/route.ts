@@ -7,6 +7,7 @@ import { appOrigin, consumeAuthToken, deliverQueuedEmail, queuePasswordChangedEm
 import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
 import { isGoogleMapsUrl } from "@/lib/integrations/google-maps";
 import { validatePassword } from "@/lib/validation/password";
+import { businessEmailMessage, isBusinessEmail } from "@/lib/validation/email";
 import { cleanMultiline, cleanSingleLine, readJsonObject, requestFingerprint, safeHttpsUrl } from "@/lib/security";
 export const runtime = "nodejs";
 
@@ -157,7 +158,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
     const passwordError = validatePassword(password, email);
     if (passwordError) return Response.json({ error: passwordError }, { status: 400 });
     const role = body.role === "supplier" ? "supplier" : "buyer";
-    if (role === "supplier" && /@(gmail|yahoo|hotmail|outlook|icloud|aol|protonmail|proton)\./i.test(email)) return Response.json({ error: "Suppliers must use a business email address." }, { status: 400 });
+    if (!isBusinessEmail(email)) return Response.json({ error: businessEmailMessage }, { status: 400 });
     const companyRegistration = role === "supplier" && body.companyApplication === true;
     const company = companyRegistration ? {
       businessName: cleanSingleLine(body.businessName, 120),
@@ -224,6 +225,8 @@ export async function POST(request: Request, context: { params: Promise<{ action
   const user = (await query<{ id: string; name: string; email: string; password_hash: string; role: "buyer" | "supplier" | "admin"; emailVerifiedAt: string | null }>('SELECT id, name, email, password_hash, role, email_verified_at AS "emailVerifiedAt" FROM users WHERE email = $1', [email])).rows[0];
   const valid = await verifyPassword(password, user?.password_hash ?? `scrypt$32768$8$1$${"0".repeat(32)}$${"0".repeat(128)}`);
   if (!user || !valid) return Response.json({ error: "Email or password is incorrect." }, { status: 401 });
+  // Buyers and suppliers must sign in with a company domain; admin accounts are exempt so the console stays reachable.
+  if (user.role !== "admin" && !isBusinessEmail(user.email)) return Response.json({ error: businessEmailMessage }, { status: 403 });
   await createSession(user.id);
   await clearRateLimit(accountKey);
   return Response.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerifiedAt: user.emailVerifiedAt } });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Eye, FilePlus2, FileText, Trash2, X } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -13,7 +13,7 @@ const MAX_FILE_BYTES = 10_000_000;
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const sizeLabel = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-export default function OfficialDocumentPicker({ documents, onChange, onError, showTypeErrors = false, title = "Official company documents", required = false, typePlaceholder = "e.g. Certificate of incorporation", error }: {
+export default function OfficialDocumentPicker({ documents, onChange, onError, showTypeErrors = false, title = "Official company documents", required = false, typePlaceholder = "e.g. Certificate of incorporation", defaultType = "", hint, error }: {
   documents: OfficialDocument[];
   onChange: (documents: OfficialDocument[]) => void;
   onError: (message: string) => void;
@@ -21,6 +21,10 @@ export default function OfficialDocumentPicker({ documents, onChange, onError, s
   title?: string;
   required?: boolean;
   typePlaceholder?: string;
+  /** Pre-fills the document type of each newly selected file, for a picker that expects one kind of document. */
+  defaultType?: string;
+  /** Replaces the default file-format line under the title, for example to state what the document must show. */
+  hint?: ReactNode;
   /** Validation message, for example when a required document is missing. */
   error?: string;
 }) {
@@ -43,7 +47,7 @@ export default function OfficialDocumentPicker({ documents, onChange, onError, s
     const added = files.map((file) => {
       const url = URL.createObjectURL(file);
       previewUrls.current.add(url);
-      return { url, name: file.name, contentType: file.type, size: file.size, file, type: "" };
+      return { url, name: file.name, contentType: file.type, size: file.size, file, type: defaultType };
     });
     onChange([...documents, ...added]);
     setPreviewUrl(added[0].url);
@@ -58,7 +62,7 @@ export default function OfficialDocumentPicker({ documents, onChange, onError, s
   };
 
   return <section className={`official-document-picker ${error ? "has-error" : ""}`} aria-label={title}>
-    <div className="official-document-heading"><span className="wizard-upload-icon"><FileText/></span><div><strong>{title} {required ? <em className="is-required">Required</em> : <em>Optional</em>}</strong><small>Up to 5 PDF or image files · 10 MB maximum per file</small></div></div>
+    <div className="official-document-heading"><span className="wizard-upload-icon"><FileText/></span><div><strong>{title} {required ? <em className="is-required">Required</em> : <em>Optional</em>}</strong><small>{hint ?? "Up to 5 PDF or image files · 10 MB maximum per file"}</small></div></div>
     <div className="official-document-toolbar"><span>{documents.length} of {MAX_DOCUMENTS} documents</span><label className={documents.length === MAX_DOCUMENTS ? "is-full" : ""}><FilePlus2 size={16}/>{documents.length === MAX_DOCUMENTS ? "5-document limit reached" : documents.length ? "Add another document" : "Choose documents"}<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple disabled={documents.length === MAX_DOCUMENTS} aria-invalid={Boolean(error)} aria-describedby={error ? "documents-error" : undefined} onChange={(event) => { selectFiles(event.target.files); event.currentTarget.value = ""; }}/></label></div>
     {documents.length ? <div className="official-document-gallery">{documents.map((document, index) => <article key={document.url} className={showTypeErrors && document.type.trim().length < 2 ? "has-error" : ""}><button type="button" className="official-document-thumbnail" onClick={() => setPreviewUrl(document.url)} aria-label={`Preview document ${index + 1}: ${document.name}`}>{document.contentType === "application/pdf" ? <FileText size={40}/> : <Image src={document.url} alt={document.name} fill unoptimized sizes="150px"/>}<span><Eye size={14}/>Preview</span></button><div className="official-document-details"><small>{document.name} · {sizeLabel(document.size)}</small><label>Document type<input value={document.type} readOnly={Boolean(document.key)} maxLength={120} onChange={(event) => updateType(document.url, event.target.value)} placeholder={typePlaceholder} aria-label={`Document type for ${document.name}`} aria-invalid={showTypeErrors && document.type.trim().length < 2}/>{showTypeErrors && document.type.trim().length < 2 && <small className="wizard-field-error">Enter the document type.</small>}</label><button type="button" onClick={() => setConfirming(document)} aria-label={`Delete ${document.name}`}><Trash2 size={15}/>Delete</button></div></article>)}</div> : <p className="official-document-empty">Selected documents will appear here. You can preview each one and name its document type.</p>}
     {error && <small id="documents-error" className="wizard-field-error">{error}</small>}

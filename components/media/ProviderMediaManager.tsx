@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Building2, Eye, ImagePlus, ImageUp, Link2, LoaderCircle, RefreshCw, Trash2, X } from "lucide-react";
+import { Building2, Eye, ImagePlus, ImageUp, Link2, LoaderCircle, RefreshCw, Star, Trash2, X } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 export type SavedMediaAsset = { key: string; name: string; contentType: string; size?: number };
@@ -17,10 +17,11 @@ const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const assetUrl = (key: string) => `/api/company-assets?key=${encodeURIComponent(key)}`;
 const sizeLabel = (bytes?: number) => bytes ? `${(bytes / 1_000_000).toFixed(1)} MB` : "";
 
-async function request(method: "POST" | "DELETE", params: Record<string, string>, form?: FormData) {
-  const response = await fetch(`/api/company-assets?${new URLSearchParams(params)}`, { method, body: form });
-  const data = await response.json().catch(() => null) as { error?: string } | null;
+async function request(method: "POST" | "DELETE" | "PATCH", params: Record<string, string>, form?: FormData | string) {
+  const response = await fetch(`/api/company-assets?${new URLSearchParams(params)}`, { method, body: form, ...(typeof form === "string" ? { headers: { "Content-Type": "application/json" } } : {}) });
+  const data = await response.json().catch(() => null) as { error?: string; live?: boolean } | null;
   if (!response.ok) throw new Error(data?.error || "The image change could not be saved. Please try again.");
+  return data;
 }
 
 /**
@@ -28,7 +29,7 @@ async function request(method: "POST" | "DELETE", params: Record<string, string>
  * Every add, replace, and delete is saved immediately and sends the listing back to admin review.
  * A required logo (companies) can be replaced but never deleted; an optional one (facilities) can be deleted.
  */
-export default function ProviderMediaManager({ applicationId, title, description, logo, showLogo = false, logoRequired = true, logoLabel = "Company logo", logoNoun = "logo", logoPhoto = false, images, linkedPhotos = [], onChanged }: {
+export default function ProviderMediaManager({ applicationId, title, description, logo, showLogo = false, logoRequired = true, logoLabel = "Company logo", logoNoun = "logo", logoPhoto = false, images, linkedPhotos = [], cover = null, onChanged }: {
   /** Facility application id; omit for the company profile. */
   applicationId?: string;
   title: string;
@@ -43,6 +44,8 @@ export default function ProviderMediaManager({ applicationId, title, description
   logoPhoto?: boolean;
   images: SavedMediaAsset[];
   linkedPhotos?: string[];
+  /** Storage key or linked URL of the image shown as the profile background. */
+  cover?: string | null;
   onChanged: (message: string) => Promise<void> | void;
 }) {
   const [busy, setBusy] = useState("");
@@ -55,19 +58,21 @@ export default function ProviderMediaManager({ applicationId, title, description
     ...linkedPhotos.map((url, index) => ({ id: url, url, name: `Linked photo ${index + 1}`, linked: url })),
   ];
   const totalBytes = images.reduce((sum, asset) => sum + (asset.size || 0), 0);
+  // Until one is chosen, the first image leads the gallery and becomes the background.
+  const coverId = photos.some((photo) => photo.id === cover) ? cover : photos[0]?.id ?? null;
 
-  const run = async (id: string, action: () => Promise<void>, message: string) => {
+  const run = async (id: string, action: () => Promise<void | string>, message: string) => {
     setBusy(id); setError("");
-    try { await action(); await onChanged(message); }
+    try { const outcome = await action(); await onChanged(typeof outcome === "string" ? outcome : message); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "The image change could not be saved."); }
     finally { setBusy(""); }
   };
-  const upload = (kind: "office" | "logo", files: File[], extra: Record<string, string> = {}) => {
+  const upload = async (kind: "office" | "logo", files: File[], extra: Record<string, string> = {}) => {
     const form = new FormData();
     form.set("kind", kind);
     Object.entries({ ...scope, ...extra }).forEach(([name, value]) => form.set(name, value));
     files.forEach((file) => form.append("files", file));
-    return request("POST", {}, form);
+    await request("POST", {}, form);
   };
   const invalid = (files: File[], maxBytes: number) => files.some((file) => !allowedTypes.has(file.type) || file.size === 0 || file.size > maxBytes);
 
@@ -96,11 +101,16 @@ export default function ProviderMediaManager({ applicationId, title, description
     if (invalid([file], MAX_LOGO_BYTES)) { setError(`Choose a JPG, PNG, or WebP ${logoNoun} no larger than 5 MB.`); return; }
     void run("logo", () => upload("logo", [file]), logo ? `${logoNoun.charAt(0).toUpperCase() + logoNoun.slice(1)} replaced and sent for review.` : `${logoNoun.charAt(0).toUpperCase() + logoNoun.slice(1)} added and sent for review.`);
   };
+  // An image the public profile already shows can lead it right away; a new one waits for approval.
+  const chooseCover = (photo: Photo) => void run(photo.id, async () => {
+    const result = await request("PATCH", {}, JSON.stringify({ ...scope, cover: photo.id }));
+    return result?.live ? "Profile background updated. It is live on your public profile now." : "Profile background updated and sent for review.";
+  }, "Profile background updated.");
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     const target = pendingDelete;
-    if (target.kind === "logo" && logo) await run("logo", () => request("DELETE", { ...scope, key: logo.key }), `${logoNoun.charAt(0).toUpperCase() + logoNoun.slice(1)} removed and sent for review.`);
-    if (target.kind === "photo") { const { photo } = target; await run(photo.id, () => request("DELETE", photo.asset ? { ...scope, key: photo.asset.key } : { ...scope, photo: photo.linked! }), "Image deleted and sent for review."); }
+    if (target.kind === "logo" && logo) await run("logo", async () => { await request("DELETE", { ...scope, key: logo.key }); }, `${logoNoun.charAt(0).toUpperCase() + logoNoun.slice(1)} removed and sent for review.`);
+    if (target.kind === "photo") { const { photo } = target; await run(photo.id, async () => { await request("DELETE", photo.asset ? { ...scope, key: photo.asset.key } : { ...scope, photo: photo.linked! }); }, "Image deleted and sent for review."); }
     setPendingDelete(null);
     setPreview(null);
   };
@@ -131,22 +141,25 @@ export default function ProviderMediaManager({ applicationId, title, description
       <button type="button" className="media-manager-thumb" onClick={() => setPreview(photo)} aria-label={`View image ${index + 1}: ${photo.name}`}>
         <Image src={photo.url} alt={photo.name} fill unoptimized sizes="220px"/>
         {photo.linked && <em><Link2 size={12}/>Linked</em>}
+        {coverId === photo.id && <i className="image-cover-flag" title="Profile background"><Star size={11}/></i>}
         <span><Eye size={14}/>View</span>
         {busy === photo.id && <i className="media-manager-busy"><LoaderCircle className="spin"/></i>}
       </button>
       <div className="media-manager-meta"><strong title={photo.name}>{photo.name}</strong>{photo.size ? <small>{sizeLabel(photo.size)}</small> : null}</div>
+      {coverId === photo.id ? <span className="image-cover-badge"><Star size={12}/>Profile background</span>
+        : <button type="button" className="image-cover-set" disabled={Boolean(busy)} onClick={() => chooseCover(photo)}><Star size={12}/>Set as background</button>}
       <div className="media-manager-actions">
         <label className={busy ? "is-disabled" : ""}><RefreshCw size={14}/>Replace{fileInput((files) => replacePhoto(photo, files?.[0]))}</label>
         <button type="button" disabled={Boolean(busy)} onClick={() => setPendingDelete({ kind: "photo", photo })}><Trash2 size={14}/>Delete</button>
       </div>
     </article>)}</div> : <p className="office-image-picker-empty">No images yet. Add images so buyers and reviewers can see this location.</p>}
 
-    <p className="fieldset-note">Changes save immediately. Your approved listing keeps its current images until an admin approves the update.</p>
+    <p className="fieldset-note">The background image fills the top of your public profile. Changes save immediately, and your approved listing keeps its current images until an admin approves the update.</p>
 
     {preview && <div className="office-image-review-backdrop" role="presentation" onClick={() => setPreview(null)}><div className="office-image-review media-manager-preview" role="dialog" aria-modal="true" aria-label={`Preview ${preview.name}`} onClick={(event) => event.stopPropagation()}>
       <header><div><small>IMAGE PREVIEW</small><h3>{preview.name}</h3></div><button type="button" aria-label="Close image preview" onClick={() => setPreview(null)}><X size={19}/></button></header>
       <div className="office-image-review-hero"><Image src={preview.url} alt={preview.name} fill unoptimized sizes="(max-width: 800px) 90vw, 700px"/></div>
-      <footer><button type="button" onClick={() => setPendingDelete({ kind: "photo", photo: preview })} disabled={Boolean(busy)}><Trash2 size={15}/>Delete</button><button type="button" className="office-image-review-confirm" onClick={() => setPreview(null)}>Done</button></footer>
+      <footer><button type="button" onClick={() => setPendingDelete({ kind: "photo", photo: preview })} disabled={Boolean(busy)}><Trash2 size={15}/>Delete</button>{coverId === preview.id ? <span className="image-cover-badge"><Star size={13}/>Profile background</span> : <button type="button" onClick={() => { chooseCover(preview); setPreview(null); }} disabled={Boolean(busy)}><Star size={15}/>Set as background</button>}<button type="button" className="office-image-review-confirm" onClick={() => setPreview(null)}>Done</button></footer>
     </div></div>}
 
     {pendingDelete && <ConfirmDialog
