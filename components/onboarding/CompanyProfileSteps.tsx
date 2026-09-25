@@ -19,11 +19,11 @@ export const emptyCompanyProfile = { businessName: "", description: "", websiteU
 export type CompanyProfileValues = typeof emptyCompanyProfile;
 /** `coverUrl` is the local URL of the office image chosen as the profile background. */
 export type CompanyEvidence = { logo: CompanyLogo | null; officeImages: OfficeImage[]; documents: OfficialDocument[]; coverUrl?: string | null };
-export type CompanyFieldKey = Exclude<keyof CompanyProfileValues, "photos"> | "logo" | "documents" | "location";
+export type CompanyFieldKey = Exclude<keyof CompanyProfileValues, "photos"> | "logo" | "officeImages" | "documents" | "location";
 export type CompanyFieldErrors = Partial<Record<CompanyFieldKey, string>>;
 
 export const companyStepTitles = (profileStage: 0 | 1) => [profileStage === 0 ? "Tell us about your company" : "Add your logo, office images, and company registration document", "What data can you provide?", "Where is your company registered?"];
-export const companyStepDescriptions = (profileStage: 0 | 1) => [profileStage === 0 ? "Start with the public-facing details buyers and reviewers should understand." : "Your logo is required and appears on your map pin and public profile after approval. Your company registration document must show a valid legal address, and is only visible to reviewers.", "Choose each capability your company can supply today.", "Enter the legal address shown on your company registration document, then place the pin on that address."];
+export const companyStepDescriptions = (profileStage: 0 | 1) => [profileStage === 0 ? "Start with the public-facing details buyers and reviewers should understand." : "Your logo and at least one office image are required. The logo appears on your map pin and public profile after approval. Your company registration document must show a valid legal address, and is only visible to reviewers.", "Choose each capability your company can supply today.", "Enter the legal address shown on your company registration document, then place the pin on that address."];
 
 export const validHttpsUrl = (value: string) => {
   try {
@@ -40,14 +40,15 @@ export const validGoogleMapsUrl = (value: string) => {
   return googleHost && url.pathname.startsWith("/maps");
 };
 
-/** `hasLogo` counts a newly picked logo or one already saved for the company. */
-export function validateCompanyStep(step: number, profileStage: 0 | 1, values: CompanyProfileValues, documents: OfficialDocument[], hasLogo: boolean): CompanyFieldErrors {
+/** `hasLogo` and `hasOfficeImages` count newly picked media or media already saved for the company. */
+export function validateCompanyStep(step: number, profileStage: 0 | 1, values: CompanyProfileValues, documents: OfficialDocument[], hasLogo: boolean, hasOfficeImages: boolean): CompanyFieldErrors {
   const issues: CompanyFieldErrors = {};
   if (step === 0 && profileStage === 0) {
     if (values.businessName.trim().length < 2) issues.businessName = "Enter a company name with at least 2 characters.";
     if (values.description.trim().length < 20) issues.description = "Describe your company in at least 20 characters.";
   }
   if (step === 0 && profileStage === 1 && !hasLogo) issues.logo = "Upload your company logo. It is shown on the map and your public profile.";
+  if (step === 0 && profileStage === 1 && !hasOfficeImages) issues.officeImages = "Upload at least one office or company image.";
   if (step === 0 && profileStage === 1) {
     if (!documents.length) issues.documents = "Upload your company registration document. It must show your valid legal address.";
     else if (documents.some((document) => document.type.trim().length < 2)) issues.documents = "Name the type of each uploaded document.";
@@ -121,9 +122,10 @@ export default function CompanyProfileStep({ step, profileStage, values, onChang
   if (step === 0) return <div className="company-wizard-fields company-evidence-fields">
     {savedMedia ?? <>
       <CompanyLogoPicker logo={evidence.logo} onChange={(logo) => onEvidence({ ...evidence, logo })} onError={onError} error={fieldError("logo")}/>
-      <OfficeImagePicker images={evidence.officeImages} onChange={(officeImages) => onEvidence({ ...evidence, officeImages })} onError={onError} coverUrl={evidence.coverUrl} onCover={(coverUrl) => onEvidence({ ...evidence, coverUrl })}/>
+      <OfficeImagePicker required error={fieldError("officeImages")} images={evidence.officeImages} onChange={(officeImages) => onEvidence({ ...evidence, officeImages })} onError={onError} coverUrl={evidence.coverUrl} onCover={(coverUrl) => onEvidence({ ...evidence, coverUrl })}/>
     </>}
     {savedMedia && fieldError("logo") && <p id="logo-error" className="wizard-section-error" role="alert">{fieldError("logo")}</p>}
+    {savedMedia && fieldError("officeImages") && <p id="officeImages-error" className="wizard-section-error" role="alert">{fieldError("officeImages")}</p>}
     <OfficialDocumentPicker title="Company registration document" required defaultType="Company registration document" typePlaceholder="e.g. Certificate of incorporation" hint={<>Upload the official registration certificate of your company. It must clearly show your company name and a valid legal address — the same legal address you enter in the location step. PDF or image, 10 MB maximum per file.</>} documents={evidence.documents} onChange={(documents) => onEvidence({ ...evidence, documents })} onError={onError} showTypeErrors={showTypeErrors} error={fieldError("documents")}/>
   </div>;
 

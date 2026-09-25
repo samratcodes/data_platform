@@ -186,3 +186,4 @@
 .wizard-chip-grid button:focus-visible { outline:2px solid #20b997; outline-offset:2px; }
 .wizard-other-environments small { margin-left:6px; color:#789087; font-size:11px; font-weight:500; }
 .facility-registration-form .company-evidence-fields > div > .fieldset-note { display:flex; align-items:center; gap:6px; margin-top:10px; }
+.office-image-picker.has-error { border-color:#d98a8f; background:#fdf6f6; }

@@ -28,6 +28,13 @@ test("company registration shows errors beside fields and fits every wizard stag
   await expect(page.locator(".official-document-picker")).toBeVisible();
   await assertFits(page);
 
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.locator(".office-image-picker .wizard-field-error")).toContainText("office or company image");
+  await expect(page.locator(".company-logo-picker .wizard-field-error")).toContainText("company logo");
+  await page.locator(".company-logo-picker input[type=file]").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: readFileSync("public/brand-logo.png") });
+  await page.locator(".office-image-picker input[type=file]").setInputFiles({ name: "office.png", mimeType: "image/png", buffer: readFileSync("public/brand-logo.png") });
+  await page.getByRole("button", { name: /keep 1 new image/ }).click();
+  await expect(page.locator(".office-image-picker .wizard-field-error")).toHaveCount(0);
   await page.locator(".official-document-picker input[type=file]").setInputFiles({ name: "certificate.png", mimeType: "image/png", buffer: readFileSync("public/brand-logo.png") });
   await page.getByRole("button", { name: "Done" }).click();
   await page.getByRole("button", { name: "Continue" }).click();

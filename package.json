@@ -10,6 +10,7 @@
     "db:migrate": "node scripts/migrate-database.mjs",
     "db:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/seed-database.mjs",
     "db:reset-ui": "node scripts/reset-ui-data.mjs",
+    "db:seed-partners": "node scripts/seed-partner-companies.mjs",
     "db:check": "node scripts/check-database.mjs",
     "db:maintain": "node scripts/maintain-database.mjs",
     "emails:check": "node scripts/check-resend.mjs",

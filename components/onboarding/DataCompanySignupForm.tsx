@@ -21,7 +21,7 @@ export default function DataCompanySignupForm() {
   const router = useRouter();
   const update = (field: Exclude<keyof typeof initialValues, "photos">, value: string | string[]) => { setValues((current) => ({ ...current, [field]: value })); if (serverFieldError?.field === field) { setServerFieldError(null); setError(""); } };
   const validateStep = (): FieldErrors => {
-    const issues: FieldErrors = validateCompanyStep(step, profileStage, values, evidence.documents, Boolean(evidence.logo));
+    const issues: FieldErrors = validateCompanyStep(step, profileStage, values, evidence.documents, Boolean(evidence.logo), evidence.officeImages.length > 0);
     if (step === 3) {
       if (values.name.trim().length < 2) issues.name = "Enter your full name.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) issues.email = "Enter a valid business email address.";

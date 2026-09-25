@@ -80,7 +80,8 @@ export default function CompanyProfileEditor({ company, approved, onSaved, onMed
   const [error, setError] = useState("");
 
   const hasLogo = Boolean(evidence.logo || company?.company_logo);
-  const validateStep = (): CompanyFieldErrors => step < 3 ? validateCompanyStep(step, profileStage, values, evidence.documents, hasLogo) : {};
+  const hasOfficeImages = Boolean(evidence.officeImages.length || company?.office_images?.length);
+  const validateStep = (): CompanyFieldErrors => step < 3 ? validateCompanyStep(step, profileStage, values, evidence.documents, hasLogo, hasOfficeImages) : {};
   const fieldErrors = attempted ? validateStep() : {};
   const scrollToProblem = () => window.setTimeout(() => {
     const input = document.querySelector<HTMLElement>('.company-profile-editor [aria-invalid="true"]');
@@ -103,7 +104,7 @@ export default function CompanyProfileEditor({ company, approved, onSaved, onMed
   const submit = async () => {
     // Every earlier step must still be valid, since the supplier can reach the last step and then edit nothing else.
     for (const [checkStep, checkStage] of [[0, 0], [0, 1], [1, 0], [2, 0]] as const) {
-      if (Object.keys(validateCompanyStep(checkStep, checkStage, values, evidence.documents, hasLogo)).length) { setStep(checkStep); setProfileStage(checkStage); setAttempted(true); scrollToProblem(); return; }
+      if (Object.keys(validateCompanyStep(checkStep, checkStage, values, evidence.documents, hasLogo, hasOfficeImages)).length) { setStep(checkStep); setProfileStage(checkStage); setAttempted(true); scrollToProblem(); return; }
     }
     setBusy(true); setError("");
     try {
