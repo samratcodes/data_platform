@@ -4,7 +4,7 @@ const tones: Record<string, Tone> = {
   pending: "warning", reviewing: "warning", contacted: "warning", draft: "neutral",
   approved: "success", accepted: "success", qualified: "success", verified: "success", physical: "success", online: "info",
   rejected: "danger", declined: "danger",
-  new: "info", closed: "neutral", unverified: "neutral",
+  new: "info", closed: "neutral", unverified: "neutral", edited: "info",
 };
 const labels: Record<string, string> = { approved: "Approved", pending: "Pending review", rejected: "Rejected", physical: "Physically verified", online: "Online verified", unverified: "Unverified" };
 

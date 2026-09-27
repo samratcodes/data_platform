@@ -175,3 +175,26 @@
   .sync-counts { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .decision-actions { grid-template-columns:minmax(0,1fr); }
 }
+
+/* Admin editing of a company or facility */
+.admin-edit { display:grid; gap:16px; }
+.admin-edit-banner { display:flex; gap:9px; padding:12px 14px; border:1px solid #cfe3f5; border-radius:11px; color:#2d5680; background:#f2f8fe; font-size:13px; line-height:1.5; }
+.admin-edit-banner > svg { flex:none; margin-top:2px; }
+.admin-edit-group { display:grid; gap:12px; }
+.admin-edit-group > header { margin-bottom:0; }
+.admin-edit-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.admin-edit-wide { grid-column:1 / -1; }
+.admin-edit .wizard-section-label { margin:4px 0 0; }
+.admin-edit .wizard-input-card select { width:100%; height:27px; margin-top:5px; padding:0; border:0; outline:0; color:#183143; background:transparent; font:inherit; font-size:14px; }
+.admin-edit-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.admin-edit-chips label { display:inline-flex; align-items:center; gap:7px; padding:7px 11px; border:1px solid var(--fm-line); border-radius:999px; color:var(--fm-text); background:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+.admin-edit-chips label.selected { border-color:#9fcfc2; color:#0f5f4b; background:#f1faf6; }
+.admin-edit-chips input { margin:0; accent-color:var(--fm-green-strong); }
+.admin-edit-footer { position:sticky; bottom:12px; z-index:2; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; padding:12px 14px; border:1px solid var(--fm-line); border-radius:var(--fm-radius-md); background:#fff; box-shadow:var(--fm-shadow-md); }
+.admin-edit-footer .form-error { flex:1 1 100%; margin:0; }
+.admin-edit-footer button { display:inline-flex; min-height:42px; align-items:center; gap:7px; padding:0 16px; border-radius:10px; font-size:14px; font-weight:700; }
+.decision-notes small { color:var(--fm-muted); font-size:12px; font-weight:400; }
+@media(max-width:760px) {
+  .admin-edit-grid { grid-template-columns:minmax(0,1fr); }
+  .admin-edit-footer button { flex:1 1 auto; justify-content:center; }
+}

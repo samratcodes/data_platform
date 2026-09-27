@@ -19,7 +19,7 @@ const sizeLabel = (bytes?: number) => bytes ? `${(bytes / 1_000_000).toFixed(1)}
 
 async function request(method: "POST" | "DELETE" | "PATCH", params: Record<string, string>, form?: FormData | string) {
   const response = await fetch(`/api/company-assets?${new URLSearchParams(params)}`, { method, body: form, ...(typeof form === "string" ? { headers: { "Content-Type": "application/json" } } : {}) });
-  const data = await response.json().catch(() => null) as { error?: string; live?: boolean } | null;
+  const data = await response.json().catch(() => null) as { error?: string; live?: boolean; warning?: string } | null;
   if (!response.ok) throw new Error(data?.error || "The image change could not be saved. Please try again.");
   return data;
 }
@@ -28,8 +28,9 @@ async function request(method: "POST" | "DELETE" | "PATCH", params: Record<strin
  * Manages the saved logo and photos of a company or facility application.
  * Every add, replace, and delete is saved immediately and sends the listing back to admin review.
  * A required logo (companies) can be replaced but never deleted; an optional one (facilities) can be deleted.
+ * In `adminEdit` mode an administrator edits the listing directly: nothing goes back to review.
  */
-export default function ProviderMediaManager({ applicationId, title, description, logo, showLogo = false, logoRequired = true, logoLabel = "Company logo", logoNoun = "logo", logoPhoto = false, images, linkedPhotos = [], cover = null, onChanged }: {
+export default function ProviderMediaManager({ adminEdit = false, applicationId, title, description, logo, showLogo = false, logoRequired = true, logoLabel = "Company logo", logoNoun = "logo", logoPhoto = false, images, linkedPhotos = [], cover = null, onChanged }: {
   /** Facility application id; omit for the company profile. */
   applicationId?: string;
   title: string;
@@ -47,12 +48,22 @@ export default function ProviderMediaManager({ applicationId, title, description
   /** Storage key or linked URL of the image shown as the profile background. */
   cover?: string | null;
   onChanged: (message: string) => Promise<void> | void;
+  /** An administrator is editing; changes apply to the listing directly without a new review. */
+  adminEdit?: boolean;
 }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [preview, setPreview] = useState<Photo | null>(null);
+  const [warning, setWarning] = useState("");
   const scope: Record<string, string> = applicationId ? { applicationId } : {};
+  // Admin edits are applied directly, so their messages never mention a new review.
+  const reviewed = (message: string) => adminEdit ? message.replace(" and sent for review", "").replace(" This change is sent for admin review.", "") : message;
+  const send = async (...args: Parameters<typeof request>) => {
+    const data = await request(...args);
+    if (data?.warning) setWarning(data.warning);
+    return data;
+  };
   const photos: Photo[] = [
     ...images.map((asset) => ({ id: asset.key, url: assetUrl(asset.key), name: asset.name, size: asset.size, asset })),
     ...linkedPhotos.map((url, index) => ({ id: url, url, name: `Linked photo ${index + 1}`, linked: url })),
@@ -62,8 +73,11 @@ export default function ProviderMediaManager({ applicationId, title, description
   const coverId = photos.some((photo) => photo.id === cover) ? cover : photos[0]?.id ?? null;
 
   const run = async (id: string, action: () => Promise<void | string>, message: string) => {
-    setBusy(id); setError("");
-    try { const outcome = await action(); await onChanged(typeof outcome === "string" ? outcome : message); }
+    setBusy(id); setError(""); setWarning("");
+    try {
+      const outcome = await action();
+      await onChanged(reviewed(typeof outcome === "string" ? outcome : message));
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : "The image change could not be saved."); }
     finally { setBusy(""); }
   };
@@ -72,7 +86,7 @@ export default function ProviderMediaManager({ applicationId, title, description
     form.set("kind", kind);
     Object.entries({ ...scope, ...extra }).forEach(([name, value]) => form.set(name, value));
     files.forEach((file) => form.append("files", file));
-    await request("POST", {}, form);
+    await send("POST", {}, form);
   };
   const invalid = (files: File[], maxBytes: number) => files.some((file) => !allowedTypes.has(file.type) || file.size === 0 || file.size > maxBytes);
 
@@ -93,7 +107,7 @@ export default function ProviderMediaManager({ applicationId, title, description
     } else if (photo.linked) {
       if (images.length >= MAX_IMAGES) { setError(`You can upload at most ${MAX_IMAGES} images. Delete one first.`); return; }
       // Upload first so a failed upload never loses the linked photo.
-      void run(photo.id, async () => { await upload("office", [file]); await request("DELETE", { ...scope, photo: photo.linked! }); }, "Photo replaced and sent for review.");
+      void run(photo.id, async () => { await upload("office", [file]); await send("DELETE", { ...scope, photo: photo.linked! }); }, "Photo replaced and sent for review.");
     }
   };
   const replaceLogo = (file: File | undefined) => {
@@ -103,14 +117,15 @@ export default function ProviderMediaManager({ applicationId, title, description
   };
   // An image the public profile already shows can lead it right away; a new one waits for approval.
   const chooseCover = (photo: Photo) => void run(photo.id, async () => {
-    const result = await request("PATCH", {}, JSON.stringify({ ...scope, cover: photo.id }));
+    const result = await send("PATCH", {}, JSON.stringify({ ...scope, cover: photo.id }));
+    if (adminEdit) return result?.live ? "Profile background updated. It is live on the public profile now." : "Profile background updated.";
     return result?.live ? "Profile background updated. It is live on your public profile now." : "Profile background updated and sent for review.";
   }, "Profile background updated.");
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     const target = pendingDelete;
-    if (target.kind === "logo" && logo) await run("logo", async () => { await request("DELETE", { ...scope, key: logo.key }); }, `${logoNoun.charAt(0).toUpperCase() + logoNoun.slice(1)} removed and sent for review.`);
-    if (target.kind === "photo") { const { photo } = target; await run(photo.id, async () => { await request("DELETE", photo.asset ? { ...scope, key: photo.asset.key } : { ...scope, photo: photo.linked! }); }, "Image deleted and sent for review."); }
+    if (target.kind === "logo" && logo) await run("logo", async () => { await send("DELETE", { ...scope, key: logo.key }); }, `${logoNoun.charAt(0).toUpperCase() + logoNoun.slice(1)} removed and sent for review.`);
+    if (target.kind === "photo") { const { photo } = target; await run(photo.id, async () => { await send("DELETE", photo.asset ? { ...scope, key: photo.asset.key } : { ...scope, photo: photo.linked! }); }, "Image deleted and sent for review."); }
     setPendingDelete(null);
     setPreview(null);
   };
@@ -118,7 +133,7 @@ export default function ProviderMediaManager({ applicationId, title, description
 
   return <section className="media-manager" aria-label={title}>
     <header className="media-manager-heading"><span className="wizard-upload-icon"><ImagePlus/></span><div><h3>{title}</h3><p>{description}</p></div></header>
-    {error && <p className="form-error media-manager-error" role="alert">{error}</p>}
+    {(error || warning) && <p className="form-error media-manager-error" role="alert">{error || warning}</p>}
 
     {showLogo && <div className="media-manager-logo">
       <div className={`company-logo-preview ${logoPhoto ? "is-photo" : ""}`}>{logo ? <Image src={assetUrl(logo.key)} alt={logoLabel} fill unoptimized sizes="96px"/> : <Building2 aria-hidden/>}{busy === "logo" && <span className="media-manager-busy"><LoaderCircle className="spin"/></span>}</div>
@@ -154,7 +169,9 @@ export default function ProviderMediaManager({ applicationId, title, description
       </div>
     </article>)}</div> : <p className="office-image-picker-empty">No images yet. Add images so buyers and reviewers can see this location.</p>}
 
-    <p className="fieldset-note">The background image fills the top of your public profile. Changes save immediately, and your approved listing keeps its current images until an admin approves the update.</p>
+    <p className="fieldset-note">{adminEdit
+      ? "The background image fills the top of the public profile. Changes save immediately and go live on an approved listing right away, without a new review."
+      : "The background image fills the top of your public profile. Changes save immediately, and your approved listing keeps its current images until an admin approves the update."}</p>
 
     {preview && <div className="office-image-review-backdrop" role="presentation" onClick={() => setPreview(null)}><div className="office-image-review media-manager-preview" role="dialog" aria-modal="true" aria-label={`Preview ${preview.name}`} onClick={(event) => event.stopPropagation()}>
       <header><div><small>IMAGE PREVIEW</small><h3>{preview.name}</h3></div><button type="button" aria-label="Close image preview" onClick={() => setPreview(null)}><X size={19}/></button></header>
@@ -164,7 +181,7 @@ export default function ProviderMediaManager({ applicationId, title, description
 
     {pendingDelete && <ConfirmDialog
       title={pendingDelete.kind === "logo" ? `Delete ${logoNoun}?` : "Delete image?"}
-      message={pendingDelete.kind === "logo" ? `The ${logoLabel.toLowerCase()} will be deleted. This change is sent for admin review.` : `“${pendingDelete.photo.name}” will be deleted. This change is sent for admin review.`}
+      message={reviewed(pendingDelete.kind === "logo" ? `The ${logoLabel.toLowerCase()} will be deleted. This change is sent for admin review.` : `“${pendingDelete.photo.name}” will be deleted. This change is sent for admin review.`)}
       busy={Boolean(busy)}
       onCancel={() => setPendingDelete(null)}
       onConfirm={() => void confirmDelete()}

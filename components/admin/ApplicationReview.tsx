@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, BadgeCheck, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileText, Globe, History, LoaderCircle, MapPin, ShieldCheck, Star, UserRound, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BadgeCheck, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileText, Globe, History, LoaderCircle, MapPin, Pencil, ShieldCheck, Star, UserRound, XCircle } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EmptyState from "@/components/ui/EmptyState";
 import ApplicationName from "./ApplicationName";
+import ApplicationEditor from "./ApplicationEditor";
 import { api } from "@/lib/api-client";
 import { assetUrl, formatBytes, formatDate, formatDateTime, formatRelative } from "@/lib/format";
 import type { ApplicationDetail, AuditEntry } from "@/types/admin";
@@ -18,7 +19,7 @@ type Decision = "approved" | "rejected";
 type Photo = { src: string; label: string; isCover?: boolean };
 
 const focusLabels: Record<string, string> = { collection: "Data collection", platform: "Data platform", embodied: "Embodied AI" };
-const actionLabels: Record<string, string> = { "application.approved": "Approved", "application.rejected": "Rejected", "application.pending": "Moved to pending" };
+const actionLabels: Record<string, string> = { "application.approved": "Approved", "application.rejected": "Rejected", "application.pending": "Moved to pending", "application.edited": "Edited by admin" };
 
 /** Reasons the application cannot be approved yet, mirrored from the server-side checks. */
 function approvalBlockers(application: ApplicationDetail) {
@@ -93,6 +94,7 @@ export default function ApplicationReview({ id }: { id: string }) {
   const [notice, setNotice] = useState("");
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [documentPreview, setDocumentPreview] = useState<ApplicationDetail["official_documents"][number] | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(() => api<{ application: ApplicationDetail; history: AuditEntry[] }>(`/api/admin/applications/${id}`).then((data) => {
     setApplication(data.application);
@@ -127,9 +129,12 @@ export default function ApplicationReview({ id }: { id: string }) {
     if (status === "rejected" && notes.trim().length < 5) { setError("Add a short reason so the supplier knows what to fix."); return; }
     setBusy(status); setError(""); setNotice("");
     try {
-      await api(`/api/admin/applications/${application.id}`, { method: "PATCH", body: JSON.stringify({ status, verificationLevel: status === "approved" ? level : "unverified", notes }) });
+      const result = await api<{ emailSent: boolean | null }>(`/api/admin/applications/${application.id}`, { method: "PATCH", body: JSON.stringify({ status, verificationLevel: status === "approved" ? level : "unverified", notes }) });
       await load();
-      setNotice(status === "approved" ? "Application approved. The listing is now live on the map." : "Application rejected. The supplier will see your feedback.");
+      const email = result.emailSent === false
+        ? " The notification email to the supplier could not be sent right away."
+        : ` The supplier was emailed${notes.trim() ? " with your notes" : ""}.`;
+      setNotice((status === "approved" ? "Application approved. The listing is now live on the map." : "Application rejected.") + email);
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(""); }
   };
@@ -146,12 +151,18 @@ export default function ApplicationReview({ id }: { id: string }) {
       </div>
       <div className="review-header-actions">
         {application.maps_url && <a className="secondary-button" href={application.maps_url} target="_blank" rel="noreferrer"><MapPin size={15}/>Google Maps</a>}
+        {!editing && <button type="button" className="secondary-button" onClick={() => { setEditing(true); setNotice(""); }}><Pencil size={15}/>Edit {isCompany ? "company" : "facility"}</button>}
         {application.status === "approved" && application.provider_slug && <Link className="secondary-button" href={`/operators/${application.provider_slug}`}><ExternalLink size={15}/>View listing</Link>}
       </div>
     </header>
 
     <div className="review-layout">
-      <div className="review-main">
+      {editing ? <div className="review-main">
+        <ApplicationEditor application={application} onClose={() => setEditing(false)} onSaved={async (message) => {
+          await load();
+          if (message) { setEditing(false); setNotice(message); window.scrollTo({ top: 0, behavior: "smooth" }); }
+        }}/>
+      </div> : <div className="review-main">
         <Section title="Applicant" icon={<UserRound size={17}/>}>
           <dl className="review-fields">
             <Field label="Name">{application.applicant_name}</Field>
@@ -229,7 +240,7 @@ export default function ApplicationReview({ id }: { id: string }) {
             <div><strong>{entry.admin_name}</strong>{entry.metadata.verificationLevel && entry.action === "application.approved" && <span> · {entry.metadata.verificationLevel} verification</span>}<small>{formatDateTime(entry.created_at)}</small>{entry.metadata.notes && <p>{entry.metadata.notes}</p>}</div>
           </li>)}</ol> : <p className="cell-muted">No decisions have been recorded yet.</p>}
         </Section>
-      </div>
+      </div>}
 
       <aside className="decision-panel" aria-label="Review decision">
         <h2>Decision</h2>
@@ -241,14 +252,14 @@ export default function ApplicationReview({ id }: { id: string }) {
           <label className={level === "online" ? "selected" : ""}><input type="radio" name="level" value="online" checked={level === "online"} onChange={() => setLevel("online")}/><span><strong>Online verified</strong><small>Identity, documents, and public footprint checked remotely.</small></span></label>
           <label className={level === "physical" ? "selected" : ""}><input type="radio" name="level" value="physical" checked={level === "physical"} onChange={() => setLevel("physical")}/><span><strong>Physically verified</strong><small>The location was visited or verified in person.</small></span></label>
         </fieldset>
-        <label className="decision-notes">Notes for the supplier<textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={4000} rows={5} placeholder="Record what you verified, or explain what needs to change. Required when rejecting."/></label>
+        <label className="decision-notes">Notes for the supplier<textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={4000} rows={5} placeholder="Record what you verified, or explain what needs to change. Required when rejecting."/><small>These notes are included in the approval or rejection email to the supplier.</small></label>
         {error && <p className="form-error" role="alert">{error}</p>}
         {notice && <p className="settings-message settings-success" role="status">{notice}</p>}
         <div className="decision-actions">
           <button type="button" className="button-approve" disabled={Boolean(busy) || blockers.length > 0} onClick={() => void decide("approved")}>{busy === "approved" ? <LoaderCircle className="spin" size={16}/> : <BadgeCheck size={16}/>}{application.status === "approved" ? "Save approval" : "Approve"}</button>
           <button type="button" className="button-reject" disabled={Boolean(busy)} onClick={() => void decide("rejected")}>{busy === "rejected" ? <LoaderCircle className="spin" size={16}/> : <XCircle size={16}/>}{application.status === "rejected" ? "Update rejection" : "Reject"}</button>
         </div>
-        <p className="decision-meta">Approving publishes the listing on the map. Rejecting hides it and shows your notes to the supplier.</p>
+        <p className="decision-meta">Approving publishes the listing on the map. Rejecting hides it. Either way the supplier is emailed the decision and your notes.</p>
       </aside>
     </div>
 

@@ -4,7 +4,7 @@ import type { PoolClient } from "pg";
 import { Resend } from "resend";
 import { query } from "@/lib/db/client";
 
-type EmailPurpose = "email_verification" | "password_reset" | "password_changed";
+type EmailPurpose = "email_verification" | "password_reset" | "password_changed" | "application_decision";
 type TokenPurpose = "email_verification" | "password_reset";
 
 const tokenDigest = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -174,6 +174,37 @@ export async function queuePasswordChangedEmail(user: { id: string; email: strin
     `Hi ${user.name},\n\nYour map.filemarket password was changed. If this was not you, contact map.filemarket support immediately.`,
     client,
   );
+}
+
+/** Tells the supplier an admin approved or rejected their company or facility, including the admin's notes. */
+export async function queueApplicationDecisionEmail(
+  user: { id: string; email: string; name: string },
+  application: { kind: "company" | "facility"; businessName: string; status: "approved" | "rejected"; notes: string },
+  origin: string,
+  client?: PoolClient,
+) {
+  const noun = application.kind === "company" ? "data company" : "facility";
+  const approved = application.status === "approved";
+  const subject = approved
+    ? `Your ${noun} "${application.businessName}" was approved`
+    : `Your ${noun} "${application.businessName}" needs changes`;
+  const outcome = approved
+    ? `Good news: your ${noun} "${application.businessName}" was approved and is now live on map.filemarket.`
+    : `Your ${noun} "${application.businessName}" was not approved yet.`;
+  const notes = application.notes.trim() ? `
+
+Message from the map.filemarket team:
+${application.notes.trim()}` : "";
+  const next = approved
+    ? `
+
+View your listings: ${origin}/supplier`
+    : `
+
+Update your submission and send it for review again: ${origin}/supplier`;
+  return enqueueEmail(user.id, user.email, "application_decision", subject, `Hi ${user.name},
+
+${outcome}${notes}${next}`, client);
 }
 
 export async function consumeAuthToken(token: string, purpose: TokenPurpose) {
