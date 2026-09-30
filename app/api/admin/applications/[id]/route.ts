@@ -8,7 +8,7 @@ import { adminRequired, adminUser, listAuditEntries, privateJson } from "@/lib/a
 import { cleanMultiline, cleanSingleLine, isUuid, readJsonObject } from "@/lib/security";
 import type { ApplicationDetail } from "@/types/admin";
 
-const levels = new Set(["unverified", "online", "physical"]);
+const levels = new Set(["unverified", "online", "physical", "incomplete"]);
 const statuses = new Set(["pending", "approved", "rejected"]);
 const notFound = () => Response.json({ error: "Application not found." }, { status: 404 });
 
@@ -54,7 +54,8 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
   const level = cleanSingleLine(body.verificationLevel, 20);
   const notes = cleanMultiline(body.notes, 4_000);
   if (!statuses.has(status) || !levels.has(level) || String(body.notes || "").length > 4_000) return Response.json({ error: "Invalid review decision." }, { status: 400 });
-  if (status === "approved" && level === "unverified") return Response.json({ error: "Approval requires online or physical verification." }, { status: 400 });
+  if (status === "approved" && level === "unverified") return Response.json({ error: "Approval requires online or physical verification, or publishing as incomplete." }, { status: 400 });
+  if (status !== "approved" && level === "incomplete") return Response.json({ error: "Only an approved listing can be incomplete." }, { status: 400 });
 
   let decision: { applicant: { id: string; email: string; name: string }; kind: "company" | "facility"; businessName: string } | null = null;
   const client = await database().connect();
@@ -96,7 +97,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
   let emailSent: boolean | null = null;
   if (decision && status !== "pending") {
     try {
-      const outboxId = await queueApplicationDecisionEmail(decision.applicant, { kind: decision.kind, businessName: decision.businessName, status: status as "approved" | "rejected", notes }, appOrigin(request));
+      const outboxId = await queueApplicationDecisionEmail(decision.applicant, { kind: decision.kind, businessName: decision.businessName, status: status as "approved" | "rejected", notes, incomplete: level === "incomplete" }, appOrigin(request));
       emailSent = (await deliverQueuedEmail(outboxId)).sent;
     } catch (error) {
       console.error("[application-decision] Could not queue the decision email.", { applicationId: id, error });

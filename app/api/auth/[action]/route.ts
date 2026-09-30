@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { clearRateLimit, rateLimited } from "@/lib/auth/rate-limit";
 import { createSession, destroySession, getUser } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
+import { claimReservedListing } from "@/lib/admin/incomplete";
 import { database, query } from "@/lib/db/client";
 import { appOrigin, consumeAuthToken, deliverQueuedEmail, queuePasswordChangedEmail, queueVerificationEmail, readAuthToken, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/integrations/email";
 import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
 import { isGoogleMapsUrl } from "@/lib/integrations/google-maps";
 import { validatePassword } from "@/lib/validation/password";
+import { isCompanyFocus } from "@/lib/company-focus";
 import { businessEmailMessage, isBusinessEmail } from "@/lib/validation/email";
 import { cleanMultiline, cleanSingleLine, readJsonObject, requestFingerprint, safeHttpsUrl } from "@/lib/security";
 export const runtime = "nodejs";
@@ -53,6 +55,8 @@ export async function POST(request: Request, context: { params: Promise<{ action
     } finally {
       client.release();
     }
+    const verifiedRole = (await query<{ role: string }>("SELECT role FROM users WHERE id = $1", [consumed.user_id])).rows[0]?.role;
+    if (verifiedRole) await claimReservedListing({ id: consumed.user_id, email: consumed.email, role: verifiedRole });
     await createSession(consumed.user_id);
     const refreshed = await getUser();
     return Response.json({ ok: true, user: refreshed });
@@ -128,7 +132,8 @@ export async function POST(request: Request, context: { params: Promise<{ action
     const client = await database().connect();
     try {
       await client.query("BEGIN");
-      await client.query("UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2", [hash, consumed.user_id]);
+      // The reset link reached the inbox, so it also verifies the email (accounts an admin created start unverified).
+      await client.query("UPDATE users SET password_hash = $1, password_changed_at = NOW(), email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = $2", [hash, consumed.user_id]);
       await client.query("DELETE FROM sessions WHERE user_id = $1", [consumed.user_id]);
       await queuePasswordChangedEmail({ id: consumed.user_id, email: consumed.email, name: consumed.name }, client);
       await client.query("COMMIT");
@@ -138,6 +143,8 @@ export async function POST(request: Request, context: { params: Promise<{ action
     } finally {
       client.release();
     }
+    const verifiedRole = (await query<{ role: string }>("SELECT role FROM users WHERE id = $1", [consumed.user_id])).rows[0]?.role;
+    if (verifiedRole) await claimReservedListing({ id: consumed.user_id, email: consumed.email, role: verifiedRole });
     await createSession(consumed.user_id);
     const refreshed = await getUser();
     return Response.json({ ok: true, user: refreshed });
@@ -162,7 +169,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
     const companyRegistration = role === "supplier" && body.companyApplication === true;
     const company = companyRegistration ? {
       businessName: cleanSingleLine(body.businessName, 120),
-      focus: typeof body.focus === "string" && ["collection", "platform", "embodied"].includes(body.focus) ? body.focus : "collection",
+      focus: isCompanyFocus(body.focus) ? body.focus : "collection",
       description: cleanMultiline(body.description, 3_000),
       website: safeHttpsUrl(body.websiteUrl),
       mapsUrl: safeHttpsUrl(body.mapsUrl),
@@ -218,16 +225,19 @@ export async function POST(request: Request, context: { params: Promise<{ action
       const delivery = await deliverQueuedEmail(verificationOutboxId);
       console.log("[email-verification] Signup delivery attempt completed.", { userId: id, sent: delivery.sent, pending: delivery.pending, outboxId: delivery.outboxId });
     }
+    const accountRole = await claimReservedListing({ id, email, role }) as typeof role;
     await createSession(id);
     await clearRateLimit(accountKey);
-    return Response.json({ user: { id, name, email, role, emailVerifiedAt: null } }, { status: 201 });
+    return Response.json({ user: { id, name, email, role: accountRole, emailVerifiedAt: null } }, { status: 201 });
   }
   const user = (await query<{ id: string; name: string; email: string; password_hash: string; role: "buyer" | "supplier" | "admin"; emailVerifiedAt: string | null }>('SELECT id, name, email, password_hash, role, email_verified_at AS "emailVerifiedAt" FROM users WHERE email = $1', [email])).rows[0];
   const valid = await verifyPassword(password, user?.password_hash ?? `scrypt$32768$8$1$${"0".repeat(32)}$${"0".repeat(128)}`);
   if (!user || !valid) return Response.json({ error: "Email or password is incorrect." }, { status: 401 });
   // Buyers and suppliers must sign in with a company domain; admin accounts are exempt so the console stays reachable.
   if (user.role !== "admin" && !isBusinessEmail(user.email)) return Response.json({ error: businessEmailMessage }, { status: 403 });
+  // A company an admin put on the map for this email becomes this account's.
+  const role = await claimReservedListing(user) as typeof user.role;
   await createSession(user.id);
   await clearRateLimit(accountKey);
-  return Response.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, emailVerifiedAt: user.emailVerifiedAt } });
+  return Response.json({ user: { id: user.id, name: user.name, email: user.email, role, emailVerifiedAt: user.emailVerifiedAt } });
 }

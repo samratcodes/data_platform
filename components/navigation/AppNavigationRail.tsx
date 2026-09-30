@@ -5,14 +5,14 @@ import Image from "next/image";
 import { isPublicAsset } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
-import { Building2, Factory, Grid2X2, LayoutDashboard, LoaderCircle, LogOut, Map, Search } from "lucide-react";
+import { Building2, Factory, Grid2X2, LayoutDashboard, LoaderCircle, LogOut, Map, Package, Search, Store, Webcam } from "lucide-react";
 import Brand from "@/components/ui/Brand";
 import { api } from "@/lib/api-client";
 import type { User } from "@/types/app";
 
 type Props = {
   user: User;
-  active: "map" | "workspace" | "settings" | "supplier" | "facility" | "onboarding" | "admin";
+  active: "map" | "workspace" | "settings" | "supplier" | "facility" | "products" | "devices" | "onboarding" | "admin";
   onSearch?: () => void;
   searchActive?: boolean;
 };
@@ -48,11 +48,19 @@ export default function AppNavigationRail({ user, active, onSearch, searchActive
         ? <button type="button" className={searchActive ? "active" : ""} onClick={onSearch} aria-label="Search and filter providers" aria-expanded={searchActive}><Search size={19}/><span className="rail-label">Search and filters</span></button>
         : <Link href="/map?search=1" aria-label="Search and filter providers"><Search size={19}/><span className="rail-label">Search and filters</span></Link>)}
       {user.role === "buyer" && <Link className={active === "workspace" ? "active" : ""} href="/dashboard" aria-label="My workspace"><Grid2X2 size={18}/><span className="rail-label">My workspace</span></Link>}
-      {user.role === "supplier" && <>
-        <Link className={active === "supplier" ? "active" : ""} href="/supplier" aria-label="Workspace"><Grid2X2 size={18}/><span className="rail-label">Workspace</span></Link>
-        <Link className={active === "facility" ? "active" : ""} href="/supplier/facilities" aria-label="Facilities"><Factory size={18}/><span className="rail-label">Facilities</span></Link>
-        <Link className={active === "onboarding" ? "active" : ""} href="/onboarding" aria-label="Company profile"><Building2 size={18}/><span className="rail-label">Company profile</span></Link>
-      </>}
+      {user.role === "buyer" && <Link className={active === "devices" ? "active" : ""} href="/devices" aria-label="Device marketplace"><Webcam size={18}/><span className="rail-label">Device marketplace</span></Link>}
+      {user.role === "supplier" && (user.companyFocus === "devices"
+        // Device companies run a store with products; they have no facilities.
+        ? <>
+          <Link className={active === "supplier" ? "active" : ""} href="/supplier" aria-label="Store"><Store size={18}/><span className="rail-label">Store</span></Link>
+          <Link className={active === "products" ? "active" : ""} href="/supplier/products" aria-label="Products"><Package size={18}/><span className="rail-label">Products</span></Link>
+        </>
+        : <>
+          <Link className={active === "supplier" ? "active" : ""} href="/supplier" aria-label="Workspace"><Grid2X2 size={18}/><span className="rail-label">Workspace</span></Link>
+          <Link className={active === "facility" ? "active" : ""} href="/supplier/facilities" aria-label="Facilities"><Factory size={18}/><span className="rail-label">Facilities</span></Link>
+          <Link className={active === "devices" ? "active" : ""} href="/devices" aria-label="Device marketplace"><Webcam size={18}/><span className="rail-label">Device marketplace</span></Link>
+        </>)}
+      {user.role === "supplier" && <Link className={active === "onboarding" ? "active" : ""} href="/onboarding" aria-label="Company profile"><Building2 size={18}/><span className="rail-label">Company profile</span></Link>}
       {user.role === "admin" && <Link className={active === "admin" ? "active" : ""} href="/admin" aria-label="Admin console"><LayoutDashboard size={18}/><span className="rail-label">Admin console</span></Link>}
     </nav>
     <div className="buyer-rail-bottom">

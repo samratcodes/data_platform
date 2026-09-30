@@ -23,7 +23,7 @@ export default function AuthForm({ signup = false, defaultRole = "buyer", lockRo
   const reducedMotion = useMotionPreference();
   const isCompanyRegistration = signup && defaultRole === "supplier";
   const alternateSignupHref = defaultRole === "supplier" ? "/signup/data-buyer" : "/signup/data-company";
-  const alternateSignupLabel = defaultRole === "supplier" ? "Create a buyer account" : "Register a data company";
+  const alternateSignupLabel = defaultRole === "supplier" ? "Create a buyer account" : "Register a company";
   const strength = [password.length >= 12, password.length >= 16, /[a-z]/.test(password) && /[A-Z]/.test(password), /\d/.test(password), /[^\p{L}\p{N}]/u.test(password)].filter(Boolean).length;
   const strengthLabel = strength >= 4 ? "Strong" : strength >= 2 ? "Good start" : "Needs work";
   return <main className={`sourcing-app auth-page ${signup ? "signup-page" : "login-page"}`}>
@@ -31,9 +31,9 @@ export default function AuthForm({ signup = false, defaultRole = "buyer", lockRo
     <div className="auth-layout">
       <section className="auth-story"><span className="eyebrow"><span className="live-dot"/> A WORLD OF POSSIBILITIES</span><h1>Your next breakthrough<br/>starts with <em>better data.</em></h1><p>Connect your AI to the real world. Discover capture facilities, explore data samples, and find the right partners, anywhere on Earth.</p><div className="auth-orbit"><Globe2 size={180} strokeWidth={.45}/><span/><span/><span/></div><p className="auth-footnote">Built for the teams building what comes next.</p></section>
       <motion.section initial={reducedMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="glass auth-card">
-        <span className="eyebrow">{isCompanyRegistration ? "DATA COMPANY REGISTRATION" : "YOUR SOURCING WORKSPACE"}</span><h2>{signup ? isCompanyRegistration ? "Register your data company." : "Create your buyer account." : "Welcome back."}</h2><p>{signup ? isCompanyRegistration ? "Create the account that manages your company profile, facilities, and verification review." : "Create an account to explore verified providers and source the right data partner." : "Log in to pick up where you left off."}</p>
+        <span className="eyebrow">{isCompanyRegistration ? "COMPANY REGISTRATION" : "YOUR SOURCING WORKSPACE"}</span><h2>{signup ? isCompanyRegistration ? "Register your company." : "Create your buyer account." : "Welcome back."}</h2><p>{signup ? isCompanyRegistration ? "Create the account that manages your company profile, facilities, and verification review." : "Create an account to explore verified providers and source the right data partner." : "Log in to pick up where you left off."}</p>
         {signup && <div className="auth-progress" aria-label="Account setup progress"><span className="active"><b>1</b>Account</span><i/><span><b>2</b>{role === "supplier" ? "Verify" : "Explore"}</span><i/><span><b>3</b>Connect</span></div>}
-        <form onSubmit={async (event) => {
+        <form method="post" onSubmit={async (event) => {
           event.preventDefault(); setError("");
           if (signup && password !== confirmation) { setError("Passwords do not match yet."); return; }
           const values = Object.fromEntries(new FormData(event.currentTarget));
@@ -58,7 +58,7 @@ export default function AuthForm({ signup = false, defaultRole = "buyer", lockRo
           <button className="primary-button" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin"/> : <>{signup ? "Create account" : "Log in to your workspace"}<ArrowUpRight size={17}/></>}</button>
         </form>
         {signup && <p className="auth-switch">Already part of the network? <Link href="/login">Log in</Link></p>}
-        {!signup && <><p className="auth-switch recovery-link"><Link href="/forgot-password">Forgot password?</Link></p><p className="auth-switch auth-register-links">Need an account? <Link href="/signup/data-buyer">Buyer</Link><Link href="/signup/data-company">Data company</Link></p></>}
+        {!signup && <><p className="auth-switch recovery-link"><Link href="/forgot-password">Forgot password?</Link></p><p className="auth-switch auth-invite-hint">Company already on the map? Use <Link href="/forgot-password">Forgot password</Link> with your company email to set your password.</p><p className="auth-switch auth-register-links">Need an account? <Link href="/signup/data-buyer">Buyer</Link><Link href="/signup/data-company">Company</Link></p></>}
         <div className="auth-security-grid"><span><LockKeyhole size={15}/><b>Protected sign-in</b><small>Encrypted credentials and secure sessions</small></span><span><ShieldCheck size={15}/><b>Verified network</b><small>Supplier listings are reviewed</small></span></div>
       </motion.section>
     </div>

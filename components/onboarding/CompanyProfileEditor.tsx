@@ -33,11 +33,22 @@ export type CompanyApplication = {
   has_sample: boolean;
 };
 
+/** A grey listing an admin added for the company, which starts its first profile. */
+export type ListingPrefill = {
+  name: string; city: string; country: string; longitude: number; latitude: number; provider_type: string;
+  logo: string | null; description: string; website: string; maps_url: string;
+};
+
 const steps = ["Company profile & evidence", "Data capabilities", "Legal address", "Links & sample"];
 const assetUrl = (key: string) => `/api/company-assets?key=${encodeURIComponent(key)}`;
 const optional = (value: number | null | undefined) => value === null || value === undefined ? "" : String(value);
 
-function initialValues(company?: CompanyApplication): CompanyProfileValues {
+function initialValues(company?: CompanyApplication, prefill?: ListingPrefill | null): CompanyProfileValues {
+  if (!company && prefill) return {
+    ...emptyCompanyProfile, businessName: prefill.name, description: prefill.description, websiteUrl: prefill.website, mapsUrl: prefill.maps_url,
+    city: prefill.city, country: prefill.country, longitude: String(prefill.longitude), latitude: String(prefill.latitude),
+    focus: prefill.provider_type === "Device Supplier" ? "devices" : "collection",
+  };
   if (!company) return emptyCompanyProfile;
   return {
     businessName: company.business_name, description: company.profile_description, websiteUrl: company.website_url || "",
@@ -48,9 +59,10 @@ function initialValues(company?: CompanyApplication): CompanyProfileValues {
 }
 
 // Saved logo and images are edited live by ProviderMediaManager; only documents are staged in the wizard.
-function initialEvidence(company?: CompanyApplication): CompanyEvidence {
+function initialEvidence(company?: CompanyApplication, prefill?: ListingPrefill | null): CompanyEvidence {
   return {
-    logo: null,
+    // The listing's logo carries over when the profile is submitted, unless the company picks another.
+    logo: !company && prefill?.logo ? { url: prefill.logo, name: "Logo from your map listing", contentType: "image/*", size: 0 } : null,
     officeImages: [],
     coverUrl: null,
     documents: (company?.official_documents || []).map((asset) => ({ key: asset.key, url: assetUrl(asset.key), name: asset.name, contentType: asset.contentType, size: asset.size || 0, type: asset.type || "Company registration document" })),
@@ -66,11 +78,11 @@ async function encodeSample(file: File) {
 }
 
 /** Company profile editor that mirrors the data-company signup wizard step for step. */
-export default function CompanyProfileEditor({ company, approved, onSaved, onMediaChanged }: { company?: CompanyApplication; approved: boolean; onSaved: (message: string) => Promise<void>; onMediaChanged: (message: string) => Promise<void> }) {
+export default function CompanyProfileEditor({ company, prefill, approved, onSaved, onMediaChanged }: { company?: CompanyApplication; prefill?: ListingPrefill | null; approved: boolean; onSaved: (message: string) => Promise<void>; onMediaChanged: (message: string) => Promise<void> }) {
   const [step, setStep] = useState(0);
   const [profileStage, setProfileStage] = useState<0 | 1>(0);
-  const [values, setValues] = useState(() => initialValues(company));
-  const [evidence, setEvidence] = useState(() => initialEvidence(company));
+  const [values, setValues] = useState(() => initialValues(company, prefill));
+  const [evidence, setEvidence] = useState(() => initialEvidence(company, prefill));
   const [links, setLinks] = useState({ linkedinUrl: company?.linkedin_url || "", twitterUrl: company?.twitter_url || "", huggingFaceUrl: company?.huggingface_url || "" });
   const [sample, setSample] = useState<File | null>(null);
   // Linked photos can also be deleted live by the media manager, so only resend them when a new location was picked here.
@@ -115,15 +127,15 @@ export default function CompanyProfileEditor({ company, approved, onSaved, onMed
       const kept = new Set(evidence.documents.flatMap((document) => document.key ? [document.key] : []));
       for (const document of company?.official_documents || []) if (!kept.has(document.key)) await api(`/api/company-assets?key=${encodeURIComponent(document.key)}`, { method: "DELETE" });
       await uploadCompanyEvidence(evidence);
-      await onSaved(approved ? "Company changes were sent for admin review. Facility submission is locked until approval." : company ? "Company profile changes sent for admin review." : "Company profile sent for admin review.");
+      await onSaved(approved ? `Company changes were sent for admin review. ${values.focus === "devices" ? "Your store stays open with its last approved profile." : "Facility submission is locked until approval."}` : company ? "Company profile changes sent for admin review." : "Company profile sent for admin review.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to submit company profile.");
       scrollToProblem();
     } finally { setBusy(false); }
   };
 
-  const titles = [...companyStepTitles(profileStage), "Add public links and an optional sample"];
-  const descriptions = [...companyStepDescriptions(profileStage), "Links help reviewers and buyers verify your public footprint. A non-sensitive sample is only visible to reviewers."];
+  const titles = [...companyStepTitles(profileStage, values.focus), "Add public links and an optional sample"];
+  const descriptions = [...companyStepDescriptions(profileStage, values.focus), "Links help reviewers and buyers verify your public footprint. A non-sensitive sample is only visible to reviewers."];
 
   return <div className="company-profile-editor">
     <form className="company-wizard-form" noValidate onSubmit={(event) => { event.preventDefault(); if (step === 3) void submit(); else next(); }}>

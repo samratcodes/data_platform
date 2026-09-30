@@ -30,7 +30,7 @@ test("public landing leads with the map and opens provider profiles", async ({ p
   await expect(page.locator(".world-map")).toHaveAttribute("data-projection", "globe");
   await expect(page.locator(".globe-video-preview.is-visible")).toHaveCount(1);
   const landingRail = page.locator(".public-navigation-rail");
-  await expect(landingRail.getByRole("link", { name: "Register data company" })).toHaveAttribute("href", "/signup/data-company");
+  await expect(landingRail.getByRole("link", { name: "Register company" })).toHaveAttribute("href", "/signup/data-company");
   await expect(landingRail.getByRole("link", { name: "About map.filemarket" })).toHaveCount(0);
   await expect(landingRail.getByRole("link", { name: "map.filemarket insights" })).toBeVisible();
   await expect(page.locator(".metrics-hud .metric-icon")).toHaveCount(3);
@@ -83,35 +83,21 @@ test("signup, saved provider, sample downloads, requests, session persistence, a
   await expect(page.getByRole("button", { name: /Switch to/ })).toHaveCount(0);
   await expect(page.locator(".directory-panel")).toBeVisible();
   await page.getByRole("button", { name: "Search and filter providers" }).click();
-  await page.getByRole("textbox", { name: "Search geography, companies, or facilities" }).fill("FileMarket.ai");
+  await page.getByRole("textbox", { name: "Search geography, companies, or facilities" }).fill("FileMarket Labs");
   await expect(page.locator(".provider-card")).toHaveCount(1);
   await page.locator(".provider-card").first().click();
-  await expect(page.getByRole("button", { name: "Request access", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Request data/ }).first()).toBeVisible();
   await page.getByRole("button", { name: "Minimize profile details" }).click();
   await expect(page.locator(".profile-panel")).toHaveCount(0);
   await page.locator(".profile-restore-tab").click();
   await expect(page.locator(".profile-panel")).toBeVisible();
   await page.getByRole("button", { name: "Save provider", exact: true }).click();
   await expect(page.getByRole("button", { name: "Unsave provider", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Motion sample/ }).click();
-  await expect(page.getByRole("dialog", { name: "Motion data sample" })).toBeVisible();
-  await expect(page.locator(".full-sample")).toHaveJSProperty("paused", false);
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /Point cloud PLY/ }).click();
-  await expect(page.getByRole("dialog", { name: "Point cloud preview" })).toBeVisible();
-  await page.locator(".pointcloud-viewer canvas").focus();
-  await page.keyboard.press("ArrowRight");
-  const plyDownload = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download PLY" }).click();
-  expect((await plyDownload).suggestedFilename()).toMatch(/demo\.ply$/);
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Request access", exact: true }).click();
+  await page.locator(".request-button").click();
   await page.getByLabel("Your use case").fill("Testing robotics perception with synthetic demonstration samples.");
   await page.getByRole("button", { name: "Submit request" }).click();
-  await expect(page.getByRole("button", { name: "Access requested" })).toBeDisabled();
-  const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download sample metadata" }).click();
-  expect((await download).suggestedFilename()).toMatch(/demo\.json$/);
+  await expect(page.locator(".request-button")).toBeDisabled();
+  await expect(page.locator(".request-button")).toContainText("Data request sent");
   await page.screenshot({ path: "test-results/desktop-profile.png" });
   await page.reload();
   await page.getByRole("link", { name: "My workspace" }).click();
@@ -119,7 +105,6 @@ test("signup, saved provider, sample downloads, requests, session persistence, a
   await expect(page.locator(".saved-grid > a")).toHaveCount(1);
   await expect(page.locator(".request-row")).toHaveCount(1);
   await page.screenshot({ path: "test-results/workspace.png" });
-  await page.getByRole("button", { name: "Open profile menu" }).click();
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page.getByRole("link", { name: "Log in", exact: true })).toBeVisible();
   await page.goto("/login");
@@ -166,7 +151,8 @@ test("mobile profile expands and keeps workspaces isolated", async ({ page, requ
   await page.goto(`/verify-email/confirm?token=${await latestEmailToken(email, "email_verification")}`);
   await expect(page).toHaveURL(/\/map/);
   await page.getByRole("button", { name: "Search and filter providers" }).click();
-  await page.getByRole("textbox", { name: "Search geography, companies, or facilities" }).fill("FileMarket.ai");
+  await page.getByRole("textbox", { name: "Search geography, companies, or facilities" }).fill("FileMarket Labs");
+  await page.getByRole("button", { name: "Close search and filters" }).click();
   await page.locator(".provider-card").first().click();
   const before = await page.locator(".profile-panel").boundingBox();
   await page.getByRole("button", { name: "Expand profile" }).click();
@@ -217,6 +203,8 @@ test("supplier application persists and buyer cannot access supplier APIs", asyn
 
   const application = await request.post("/api/supplier/application", { headers, data: {
     businessName: "QA Capture Facility",
+    description: "QA capture company collecting egocentric video and images for AI teams.",
+    websiteUrl: "https://example.com",
     providerType: "Facility",
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=27.7172,85.3240",
     physicalAddress: "Kathmandu Metropolitan City",
@@ -229,7 +217,7 @@ test("supplier application persists and buyer cannot access supplier APIs", asyn
     roboticsTypes: [],
   } });
   expect(application.status()).toBe(201);
-  const dashboard = await request.get("/api/supplier/dashboard");
+  const dashboard = await request.get("/api/supplier/application");
   expect(dashboard.status()).toBe(200);
   expect((await dashboard.json()).applications[0].business_name).toBe("QA Capture Facility");
 

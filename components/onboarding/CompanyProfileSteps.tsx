@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Building2, Check, FileText, Image as ImageIcon, MapPinned, Mic, Radio, Video } from "lucide-react";
+import { Check, Database, FileText, Image as ImageIcon, MapPinned, Mic, Radio, Video, Webcam } from "lucide-react";
+import { companyFocusCards } from "@/lib/company-focus";
 import FacilityLocationPicker, { type PickedLocation } from "./FacilityLocationPicker";
 import CompanyLogoPicker, { type CompanyLogo } from "./CompanyLogoPicker";
 import OfficeImagePicker, { type OfficeImage } from "./OfficeImagePicker";
@@ -13,7 +14,8 @@ import OfficialDocumentPicker, { type OfficialDocument } from "./OfficialDocumen
  */
 
 export const companyCapabilities = [{ value: "Egocentric video", icon: Video, detail: "First-person capture" }, { value: "Exocentric video", icon: Radio, detail: "Third-person capture" }, { value: "Speech", icon: Mic, detail: "Voice and conversation" }, { value: "Images", icon: ImageIcon, detail: "Image datasets" }];
-export const companyFocusCards = [{ value: "collection", title: "Data collection", detail: "Capture and collection operations" }, { value: "platform", title: "Data platform", detail: "Data products and infrastructure" }, { value: "embodied", title: "Embodied AI", detail: "Robotics and real-world AI" }];
+export { companyFocusCards };
+const focusIcons = { collection: Database, devices: Webcam } as const;
 export const emptyCompanyProfile = { businessName: "", description: "", websiteUrl: "", mapsUrl: "", physicalAddress: "", city: "", country: "", longitude: "", latitude: "", focus: "collection", modalities: [] as string[], photos: [] as string[] };
 
 export type CompanyProfileValues = typeof emptyCompanyProfile;
@@ -22,8 +24,9 @@ export type CompanyEvidence = { logo: CompanyLogo | null; officeImages: OfficeIm
 export type CompanyFieldKey = Exclude<keyof CompanyProfileValues, "photos"> | "logo" | "officeImages" | "documents" | "location";
 export type CompanyFieldErrors = Partial<Record<CompanyFieldKey, string>>;
 
-export const companyStepTitles = (profileStage: 0 | 1) => [profileStage === 0 ? "Tell us about your company" : "Add your logo, office images, and company registration document", "What data can you provide?", "Where is your company registered?"];
-export const companyStepDescriptions = (profileStage: 0 | 1) => [profileStage === 0 ? "Start with the public-facing details buyers and reviewers should understand." : "Your logo and at least one office image are required. The logo appears on your map pin and public profile after approval. Your company registration document must show a valid legal address, and is only visible to reviewers.", "Choose each capability your company can supply today.", "Enter the legal address shown on your company registration document, then place the pin on that address."];
+// Device companies describe the data their devices capture; data-collection companies describe the data they supply.
+export const companyStepTitles = (profileStage: 0 | 1, focus = "collection") => [profileStage === 0 ? "Tell us about your company" : "Add your logo, office images, and company registration document", focus === "devices" ? "What data do your devices capture?" : "What data can you provide?", "Where is your company registered?"];
+export const companyStepDescriptions = (profileStage: 0 | 1, focus = "collection") => [profileStage === 0 ? "Start with the public-facing details buyers and reviewers should understand." : `Your logo and at least one office image are required. The logo appears on your map pin and public ${focus === "devices" ? "store" : "profile"} after approval. Your company registration document must show a valid legal address, and is only visible to reviewers.`, focus === "devices" ? "Choose each kind of data your devices record. You add the devices themselves as products after registering." : "Choose each capability your company can supply today.", "Enter the legal address shown on your company registration document, then place the pin on that address."];
 
 export const validHttpsUrl = (value: string) => {
   try {
@@ -115,8 +118,9 @@ export default function CompanyProfileStep({ step, profileStage, values, onChang
 
   if (step === 0 && profileStage === 0) return <div className="company-wizard-fields">
     <label className={`wizard-input-card ${fieldError("businessName") ? "has-error" : ""}`}><span>Company name</span><input value={values.businessName} onChange={(event) => onChange("businessName", event.target.value)} autoComplete="organization" placeholder="Your company name" {...errorProps("businessName")} autoFocus/>{errorText("businessName")}</label>
-    <label className={`wizard-input-card ${fieldError("description") ? "has-error" : ""}`}><span>Company profile</span><textarea value={values.description} onChange={(event) => onChange("description", event.target.value)} placeholder="What data do you provide, and how is it collected?" {...errorProps("description")}/>{errorText("description")}</label>
-    <div><span className="wizard-section-label">Primary focus</span><div className="wizard-choice-grid">{companyFocusCards.map((card) => <button type="button" key={card.value} className={values.focus === card.value ? "selected" : ""} onClick={() => onChange("focus", card.value)}><Building2/><strong>{card.title}</strong><small>{card.detail}</small>{values.focus === card.value && <Check/>}</button>)}</div></div>
+    <div><span className="wizard-section-label">Primary focus</span><div className="wizard-choice-grid is-two">{companyFocusCards.map((card) => { const Icon = focusIcons[card.value]; return <button type="button" key={card.value} className={values.focus === card.value ? "selected" : ""} aria-pressed={values.focus === card.value} onClick={() => onChange("focus", card.value)}><Icon/><strong>{card.title}</strong><small>{card.detail}</small>{values.focus === card.value && <Check/>}</button>; })}</div>
+      <p className="wizard-focus-note">{values.focus === "devices" ? "After approval you get a store: list your devices as products with specs, and receive enquiries from buyers and data companies." : "After approval you add your facilities, and each one gets its own pin on the map."}</p></div>
+    <label className={`wizard-input-card ${fieldError("description") ? "has-error" : ""}`}><span>Company profile</span><textarea value={values.description} onChange={(event) => onChange("description", event.target.value)} placeholder={values.focus === "devices" ? "Which devices do you make or sell, and what kind of data collection are they built for?" : "What data do you provide, and how is it collected?"} {...errorProps("description")}/>{errorText("description")}</label>
   </div>;
 
   if (step === 0) return <div className="company-wizard-fields company-evidence-fields">

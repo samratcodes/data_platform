@@ -1,0 +1,82 @@
+/* ─────────────────────────────────────────────────────────────
+   Full-screen workspaces. The admin console, company dashboards,
+   device marketplace, settings, and buyer workspace fill the
+   viewport as one panel that lines up with the navigation rail:
+   same top and bottom inset, one rail-width gap on the left.
+   On phones the rail becomes a top bar and the panel sits below it.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  --rail-inset:14px;
+  --rail-width:48px;
+  /* The rail, plus one inset on each side of it. */
+  --shell-left:calc(var(--rail-inset) * 2 + var(--rail-width));
+}
+
+@media(min-width:761px) {
+  .buyer-navigation-rail { top:var(--rail-inset); bottom:var(--rail-inset); left:var(--rail-inset); width:var(--rail-width); }
+  /* On full-screen pages the rail runs the full height beside the panel, for every role. */
+  /* The rail runs the full height beside the panel for every role. Admin and company
+     rails used to stop after their last item (bottom:auto in 08-platform.css). */
+  .buyer-navigation-rail,
+  .buyer-navigation-rail.role-admin,
+  .buyer-navigation-rail.role-supplier { bottom:var(--rail-inset); }
+  .buyer-navigation-rail .buyer-rail-bottom,
+  .buyer-navigation-rail:is(.role-admin,.role-supplier) .buyer-rail-bottom { margin-top:auto; }
+
+  /* Company and store landing pages use the same frame: content from the rail to the right edge. */
+  .operator-profile-page .op-shell { width:auto; max-width:none; margin:0 var(--rail-inset) 0 var(--shell-left); }
+
+  .admin-page,
+  .store-page,
+  .settings-page,
+  .buyer-workspace-page { min-height:100dvh; padding:var(--rail-inset) var(--rail-inset) var(--rail-inset) var(--shell-left) !important; }
+
+  .admin-console,
+  .admin-shell.supplier-shell,
+  .store-shell,
+  .settings-page .settings-shell,
+  .buyer-workspace-shell {
+    width:auto !important;
+    max-width:none !important;
+    min-height:calc(100dvh - var(--rail-inset) * 2);
+    margin:0 !important;
+    padding:clamp(22px,2.4vw,34px) clamp(20px,3vw,48px) 44px !important;
+    border:1px solid var(--app-surface-line);
+    border-radius:20px;
+    background:#fff;
+    box-shadow:0 2px 10px rgb(20 40 60 / 4%);
+  }
+
+  /* Admin section tabs stick to the top of the panel. */
+  .admin-console .admin-sections { top:0; margin-inline:calc(clamp(20px,3vw,48px) * -1); margin-top:calc(clamp(22px,2.4vw,34px) * -1); padding:14px clamp(20px,3vw,48px); border-radius:20px 20px 0 0; background:rgb(255 255 255 / 92%); }
+
+  /* Wide screens: the dashboard's side column grows a little instead of leaving empty space. */
+  .desk-grid { grid-template-columns:minmax(0,1fr) clamp(300px,24vw,380px); }
+}
+
+@media(min-width:1600px) {
+  .desk-ledger strong { font-size:40px; }
+}
+
+@media(max-width:760px) {
+  .admin-page,
+  .store-page,
+  .settings-page,
+  .buyer-workspace-page { padding:64px 8px 8px !important; }
+
+  .admin-console,
+  .admin-shell.supplier-shell,
+  .store-shell,
+  .settings-page .settings-shell,
+  .buyer-workspace-shell {
+    width:auto !important;
+    min-height:calc(100dvh - 72px);
+    margin:0 !important;
+    padding:18px 14px 28px !important;
+    border:1px solid var(--app-surface-line);
+    border-radius:16px;
+    background:#fff;
+  }
+  .admin-console .admin-sections { margin-inline:-14px; margin-top:-18px; padding:10px 14px; border-radius:16px 16px 0 0; }
+}

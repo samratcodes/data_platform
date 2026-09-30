@@ -6,9 +6,10 @@ import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
 import { isGoogleMapsUrl } from "@/lib/integrations/google-maps";
 import { cleanMultiline, cleanSingleLine, isUuid, readJsonObject, safeHttpsUrl } from "@/lib/security";
 import { facilityCapacity, parseFacilityDetails } from "@/lib/facility";
+import { isCompanyFocus } from "@/lib/company-focus";
+import { claimListingFor } from "@/lib/admin/listing";
 
 const modalities = new Set(["Egocentric video", "Exocentric video", "Speech", "Images"]);
-const companyFocuses = new Set(["collection", "platform", "embodied"]);
 const sampleTypes = new Set(["application/json", "text/csv", "text/plain", "application/zip", "application/x-zip-compressed", "application/pdf", "image/jpeg", "image/png", "image/webp", "audio/mpeg", "audio/wav", "video/mp4", "application/octet-stream"]);
 const strings = (value: unknown, limit = 12) => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === "string" && item.length <= 120).map((item) => cleanSingleLine(item, 120)).filter(Boolean).slice(0, limit)
@@ -32,7 +33,19 @@ export async function GET() {
     WHERE user_id = $1
     ORDER BY submitted_at DESC
   `, [user.id]);
-  return Response.json({ applications: result.rows }, { headers: { "Cache-Control": "private, no-store" } });
+  // A grey listing an admin added for this company prefills its first profile.
+  const hasCompany = result.rows.some((row) => row.application_kind === "company");
+  const listing = hasCompany ? null : (await query(`
+    SELECT name, city, country, longitude, latitude, provider_type, profile->>'logo' AS logo,
+           COALESCE(profile->>'description', '') AS description, COALESCE(profile->'links'->>'website', '') AS website,
+           COALESCE(profile->'links'->>'maps', '') AS maps_url
+    FROM providers
+    WHERE (owner_id = $1 OR (owner_id IS NULL AND LOWER(claim_email) = LOWER($2)))
+      AND verification_level = 'incomplete' AND provider_type IN ('Data Company', 'Device Supplier')
+      AND NOT EXISTS (SELECT 1 FROM supplier_applications WHERE provider_slug = providers.slug)
+    ORDER BY created_at ASC LIMIT 1
+  `, [user.id, user.email])).rows[0] ?? null;
+  return Response.json({ applications: result.rows, listing }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -87,7 +100,7 @@ export async function POST(request: Request) {
         return Response.json({ error: "Add a Google Maps location for your data company, then confirm its address, city, and country." }, { status: 400 });
       }
 
-      const focus = typeof body.focus === "string" && companyFocuses.has(body.focus) ? body.focus : "collection";
+      const focus = isCompanyFocus(body.focus) ? body.focus : "collection";
       const id = existing?.id || randomUUID();
       if (existing) {
         await client.query(`
@@ -114,11 +127,19 @@ export async function POST(request: Request) {
           ) VALUES ($1,$2,'company',$3,$4,$5,$6,$7,$8,$9,$10::jsonb,'Data Company',$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
         `, [id, user.id, businessName, mapsUrl, address, city, country, longitude, latitude, JSON.stringify(companyPictures), JSON.stringify(selectedModalities), description, website, safeHttpsUrl(body.linkedinUrl), safeHttpsUrl(body.twitterUrl), safeHttpsUrl(body.huggingFaceUrl), validSample ? sampleName : null, validSample ? sampleType : null, validSample ? sampleBuffer?.length : null, validSample ? sampleBuffer : null, focus]);
       }
+      // A company an admin already put on the map for this email becomes theirs to complete.
+      await claimListingFor(client, user, id);
       await enqueueUserSheetSync(user.id, client);
       await client.query("COMMIT");
       return Response.json({ id, kind, status: "pending" }, { status: existing ? 200 : 201 });
     }
 
+    const company = (await client.query<{ status: string; company_focus: string }>("SELECT status, company_focus FROM supplier_applications WHERE user_id = $1 AND application_kind = 'company' ORDER BY submitted_at DESC LIMIT 1", [user.id])).rows[0];
+    // Device companies run a product store instead of facilities.
+    if (company?.company_focus === "devices") {
+      await client.query("ROLLBACK");
+      return Response.json({ error: "Device companies list products in their store instead of facilities." }, { status: 403 });
+    }
     const companyApproved = await client.query("SELECT 1 FROM supplier_applications WHERE user_id = $1 AND application_kind = 'company' AND status = 'approved' LIMIT 1", [user.id]);
     if (!companyApproved.rowCount) {
       await client.query("ROLLBACK");

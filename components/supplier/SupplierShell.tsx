@@ -4,16 +4,19 @@ import { ArrowLeft } from "lucide-react";
 import AppNavigationRail from "@/components/navigation/AppNavigationRail";
 import PageHeader from "@/components/ui/PageHeader";
 import type { User } from "@/types/app";
+import VerificationBar from "./VerificationBar";
 
 /**
  * Shared frame for every data-company page: navigation rail, page header,
  * a main column, and an optional side panel that stacks below on small screens.
  */
-export default function SupplierShell({ user, active, eyebrow, title, description, actions, back, aside, notice, children }: {
+export default function SupplierShell({ user, active, eyebrow = "", title, description, actions, back, aside, notice, header, children }: {
   user: User;
-  active: "supplier" | "facility" | "onboarding";
-  eyebrow: string;
-  title: ReactNode;
+  active: "supplier" | "facility" | "products" | "onboarding";
+  eyebrow?: string;
+  title?: ReactNode;
+  /** Replaces the standard page header, e.g. with a company overview on dashboards. */
+  header?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   back?: { href: string; label: string };
@@ -25,8 +28,9 @@ export default function SupplierShell({ user, active, eyebrow, title, descriptio
   return <main className="sourcing-app admin-page supplier-workspace">
     <AppNavigationRail user={user} active={active}/>
     <section className="admin-shell supplier-shell">
+      <VerificationBar user={user} onProfile={active === "onboarding"}/>
       {back && <Link className="supplier-back" href={back.href}><ArrowLeft size={15}/>{back.label}</Link>}
-      <PageHeader eyebrow={eyebrow} title={title} description={description} actions={actions}/>
+      {header ?? <PageHeader eyebrow={eyebrow} title={title ?? ""}description={description} actions={actions}/>}
       {notice}
       <div className={`supplier-layout ${aside ? "has-aside" : ""}`}>
         <div className="supplier-main">{children}</div>

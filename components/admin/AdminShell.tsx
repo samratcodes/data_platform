@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, Building2, Factory, History, LayoutDashboard } from "lucide-react";
+import { BriefcaseBusiness, Building2, Factory, History, LayoutDashboard, Webcam } from "lucide-react";
 import AppNavigationRail from "@/components/navigation/AppNavigationRail";
 import { api } from "@/lib/api-client";
 import type { AdminOverview } from "@/types/admin";
@@ -13,6 +13,7 @@ const sections = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/companies", label: "Data companies", icon: Building2 },
   { href: "/admin/facilities", label: "Facilities", icon: Factory },
+  { href: "/admin/device-companies", label: "Device companies", icon: Webcam },
   { href: "/admin/leads", label: "Concierge leads", icon: BriefcaseBusiness },
   { href: "/admin/activity", label: "Activity log", icon: History },
 ] as const;
@@ -29,6 +30,7 @@ export default function AdminShell({ user, children }: { user: User; children: R
       .then((overview) => setCounts({
         "/admin/companies": overview.applications.company.pending,
         "/admin/facilities": overview.applications.facility.pending,
+        "/admin/device-companies": overview.applications.device.pending,
         "/admin/leads": overview.leads.new,
       }))
       .catch(() => {});

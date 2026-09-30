@@ -4,7 +4,7 @@ import type { PoolClient } from "pg";
 import { Resend } from "resend";
 import { query } from "@/lib/db/client";
 
-type EmailPurpose = "email_verification" | "password_reset" | "password_changed" | "application_decision";
+type EmailPurpose = "email_verification" | "password_reset" | "password_changed" | "application_decision" | "product_enquiry";
 type TokenPurpose = "email_verification" | "password_reset";
 
 const tokenDigest = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -179,16 +179,20 @@ export async function queuePasswordChangedEmail(user: { id: string; email: strin
 /** Tells the supplier an admin approved or rejected their company or facility, including the admin's notes. */
 export async function queueApplicationDecisionEmail(
   user: { id: string; email: string; name: string },
-  application: { kind: "company" | "facility"; businessName: string; status: "approved" | "rejected"; notes: string },
+  application: { kind: "company" | "facility"; businessName: string; status: "approved" | "rejected"; notes: string; incomplete?: boolean },
   origin: string,
   client?: PoolClient,
 ) {
-  const noun = application.kind === "company" ? "data company" : "facility";
+  const noun = application.kind === "company" ? "company" : "facility";
   const approved = application.status === "approved";
-  const subject = approved
+  const subject = approved && application.incomplete
+    ? `Your ${noun} "${application.businessName}" is on the map: complete your profile`
+    : approved
     ? `Your ${noun} "${application.businessName}" was approved`
     : `Your ${noun} "${application.businessName}" needs changes`;
-  const outcome = approved
+  const outcome = approved && application.incomplete
+    ? `Your ${noun} "${application.businessName}" is now on map.filemarket as an incomplete listing: it shows in grey with its name, logo, and location. Complete your profile and send it for review to get verified.`
+    : approved
     ? `Good news: your ${noun} "${application.businessName}" was approved and is now live on map.filemarket.`
     : `Your ${noun} "${application.businessName}" was not approved yet.`;
   const notes = application.notes.trim() ? `
@@ -205,6 +209,23 @@ Update your submission and send it for review again: ${origin}/supplier`;
   return enqueueEmail(user.id, user.email, "application_decision", subject, `Hi ${user.name},
 
 ${outcome}${notes}${next}`, client);
+}
+
+/** Tells a device company that someone asked about one of its products. */
+export async function queueProductEnquiryEmail(
+  owner: { id: string; email: string; name: string },
+  enquiry: { productName: string; senderName: string; senderCompany: string | null; quantity: number | null; timeline: string; message: string },
+  origin: string,
+) {
+  const sender = enquiry.senderCompany ? `${enquiry.senderName} (${enquiry.senderCompany})` : enquiry.senderName;
+  const details = [enquiry.quantity ? `Quantity: ${enquiry.quantity.toLocaleString("en-US")}` : "", enquiry.timeline ? `Needed: ${enquiry.timeline}` : ""].filter(Boolean).join("\n");
+  return enqueueEmail(owner.id, owner.email, "product_enquiry", `New enquiry about ${enquiry.productName}`, `Hi ${owner.name},
+
+${sender} sent an enquiry about ${enquiry.productName}.
+${details ? `\n${details}\n` : ""}
+${enquiry.message}
+
+Reply from your store workspace: ${origin}/supplier`);
 }
 
 export async function consumeAuthToken(token: string, purpose: TokenPurpose) {

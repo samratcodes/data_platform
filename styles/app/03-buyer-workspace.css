@@ -88,3 +88,12 @@
   .buyer-workspace-stats article { min-height:78px; }
   .settings-page .settings-shell { width:calc(100% - 84px); margin:38px 10px 38px 74px; }
 }
+
+/* On phones the filter sheet covers the map, so floating map controls must not sit on top of its header or checkboxes. */
+@media(max-width:760px) {
+  .buyer-map:has(.buyer-filter-sidebar.is-open) .map-location-key,
+  .buyer-map:has(.buyer-filter-sidebar.is-open) .directory-toggle-button { display:none; }
+}
+
+/* The mobile profile sheet is raised above the map chrome; keep its expand toggle reachable on top of it. */
+.buyer-map .sheet-expand-button { z-index:51; }

@@ -6,8 +6,14 @@ import { cookies } from "next/headers";
 import { query } from "@/lib/db/client";
 import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "./cookie";
 import type { UserRole } from "./roles";
+import { isCompanyFocus, type CompanyFocus } from "@/lib/company-focus";
+import type { CompanyStanding } from "@/types/app";
 
-export type SessionUser = { id: string; name: string; email: string; role: UserRole; emailVerifiedAt: string | null; companyLogo: string | null };
+/**
+ * `companyFocus` is set for suppliers with a company application or a listing an admin added for them:
+ * it decides facilities versus a device store. `companyStanding` is null for everyone but suppliers.
+ */
+export type SessionUser = { id: string; name: string; email: string; role: UserRole; emailVerifiedAt: string | null; companyLogo: string | null; companyFocus: CompanyFocus | null; companyStanding: CompanyStanding | null; companyName: string | null };
 
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -15,21 +21,37 @@ export const digest = (value: string) => createHash("sha256").update(value).dige
 export const getUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const result = await query<Omit<SessionUser, "companyLogo"> & { logoKey: string | null; logoPublic: boolean | null }>(`
-    SELECT users.id, users.name, users.email, users.role, users.email_verified_at AS "emailVerifiedAt", company.logo_key AS "logoKey", company.approved AS "logoPublic"
+  const result = await query<Omit<SessionUser, "companyLogo" | "companyFocus" | "companyStanding" | "companyName"> & { logoKey: string | null; logoPublic: boolean | null; focus: string | null; status: string | null; level: string | null; listingType: string | null; businessName: string | null; listingName: string | null; listingLogo: string | null }>(`
+    SELECT users.id, users.name, users.email, users.role, users.email_verified_at AS "emailVerifiedAt", company.logo_key AS "logoKey", company.approved AS "logoPublic",
+           company.company_focus AS focus, company.status, company.business_name AS "businessName", listing.verification_level AS level, listing.provider_type AS "listingType",
+           listing.name AS "listingName", listing.logo AS "listingLogo"
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     LEFT JOIN LATERAL (
-      SELECT company_logo->>'key' AS logo_key, status = 'approved' AS approved FROM supplier_applications
+      SELECT company_logo->>'key' AS logo_key, status = 'approved' AS approved, company_focus, status, business_name FROM supplier_applications
       WHERE user_id = users.id AND application_kind = 'company'
       ORDER BY submitted_at DESC LIMIT 1
     ) company ON users.role = 'supplier'
+    LEFT JOIN LATERAL (
+      SELECT verification_level, provider_type, name, profile->>'logo' AS logo FROM providers
+      WHERE owner_id = users.id AND provider_type IN ('Data Company', 'Device Supplier')
+      ORDER BY created_at ASC LIMIT 1
+    ) listing ON users.role = 'supplier'
     WHERE token_hash = $1 AND expires_at > $2`, [digest(token), Date.now()]);
   const row = result.rows[0];
   if (!row) return null;
-  const { logoKey, logoPublic, ...user } = row;
+  const { logoKey, logoPublic, focus, status, level, listingType, businessName, listingName, listingLogo, ...user } = row;
+  // A listing an admin added decides the focus until the company submits its own profile.
+  const companyFocus = isCompanyFocus(focus) ? focus : listingType === "Device Supplier" ? "devices" : listingType ? "collection" : null;
+  // Clients see the live listing: once it is verified online or physically, later edits under review do not undo that.
+  // An approved profile published as "incomplete" is still unverified.
+  const companyStanding: CompanyStanding | null = user.role !== "supplier" ? null
+    : level === "online" || level === "physical" ? "verified"
+      : status === "pending" ? "pending" : status === "rejected" ? "rejected" : "unverified";
   // An approved logo is public, so it can be resized and cached instead of re-downloading the original.
-  return { ...user, companyLogo: logoKey ? `/api/company-assets?${logoPublic ? "public=1&" : ""}key=${encodeURIComponent(logoKey)}` : null };
+  // Until the company submits its own profile, the grey listing an admin added supplies its name and logo.
+  const companyLogo = logoKey ? `/api/company-assets?${logoPublic ? "public=1&" : ""}key=${encodeURIComponent(logoKey)}` : listingLogo?.startsWith("/api/company-assets?public=1&") ? listingLogo : null;
+  return { ...user, companyLogo, companyFocus, companyStanding, companyName: businessName || listingName || null };
 });
 
 export function isEmailVerified(user: SessionUser) {

@@ -13,7 +13,7 @@ export default function ForgotPasswordPanel() {
   return <main className="sourcing-app auth-page">
     <PublicNavigationRail active="login"/>
     <section className="auth-layout compact-auth">
-      <form className="glass auth-card recovery-card" onSubmit={async (event) => {
+      <form method="post" className="glass auth-card recovery-card" onSubmit={async (event) => {
         event.preventDefault();
         setBusy(true);
         setError("");

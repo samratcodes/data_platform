@@ -2,7 +2,7 @@
 
 export type ApplicationKind = "company" | "facility";
 export type ApplicationStatus = "pending" | "approved" | "rejected";
-export type VerificationLevel = "unverified" | "online" | "physical";
+export type VerificationLevel = "unverified" | "online" | "physical" | "incomplete";
 export type LeadStatus = "new" | "contacted" | "qualified" | "closed";
 
 export type StoredAsset = { key: string; name: string; contentType: string; size?: number; type?: string };
@@ -18,6 +18,8 @@ export type ApplicationSummary = {
   country: string | null;
   status: ApplicationStatus;
   verification_level: VerificationLevel;
+  /** The company's focus; facilities inherit their company's. */
+  company_focus: "collection" | "devices";
   submitted_at: string;
   reviewed_at: string | null;
   logo_key: string | null;
@@ -81,7 +83,7 @@ export type AuditEntry = {
   target_type: string;
   target_id: string;
   target_label: string | null;
-  metadata: { notes?: string; verificationLevel?: string; applicationKind?: string; status?: string };
+  metadata: { name?: string; notes?: string; verificationLevel?: string; applicationKind?: string; status?: string };
   created_at: string;
   admin_name: string;
 };
@@ -99,10 +101,39 @@ export type Lead = {
 };
 
 export type AdminOverview = {
-  applications: Record<ApplicationKind, Record<ApplicationStatus, number>>;
+  /** `company` counts data-collection companies; device companies are counted under `device`. */
+  applications: Record<ApplicationKind | "device", Record<ApplicationStatus, number>>;
   leads: Record<LeadStatus, number>;
   liveListings: number;
+  /** Live device stores, their published products, and enquiries sent to them. */
+  devices: { stores: number; products: number; enquiries: number };
   pending: ApplicationSummary[];
   activity: AuditEntry[];
   sheetSync: { configured: boolean; counts: Record<string, number> };
+};
+
+/** A listing on the map in grey with only a logo, name, and location. */
+export type IncompleteListing = {
+  slug: string;
+  name: string;
+  city: string;
+  country: string;
+  provider_type: "Data Company" | "Device Supplier" | "Facility" | "Robotics";
+  logo: string | null;
+  /** Who may claim a listing an admin added; null once it has an owner. */
+  claim_email: string | null;
+  owner_email: string | null;
+  /** False while the owner is an account the listing created that the company has not signed in to yet. */
+  owner_activated: boolean;
+  /** Set when the listing came from a company's own registration. */
+  application_id: string | null;
+  application_status: ApplicationStatus | null;
+  created_at: string;
+};
+
+/** An unclaimed listing an admin added, with the fields its edit form shows. */
+export type IncompleteListingDetail = Pick<IncompleteListing, "slug" | "name" | "city" | "country" | "provider_type" | "logo" | "claim_email"> & {
+  longitude: number; latitude: number; description: string; website: string; maps_url: string;
+  /** Once the company has signed in, its email is its login and can no longer be changed by an admin. */
+  owner_activated: boolean;
 };

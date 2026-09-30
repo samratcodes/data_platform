@@ -529,10 +529,17 @@
 .metrics-hud,.metrics-hud .metric-card { background:#fffffffa; }
 .metrics-hud .metric-card:hover { background:#fffffffa; }
 .landing-experience .map-company-list button strong { display:flex; align-items:center; gap:6px; margin-top:0; }
-.provider-verification { width:14px; height:14px; flex:none; stroke-width:2.25; }
-.provider-verification.is-physical { color:#2776e8; fill:#eaf2ff; }
-.provider-verification.is-online { color:#94a3b8; fill:#f1f5f9; }
-.provider-verification.is-unverified { color:#c4cfcc; }
+/* Verification marks after the company name: a solid blue tick (physically verified) and a solid grey tick
+   (online verified) drawn like Instagram's badge, and a dashed empty circle with a label for incomplete listings. */
+.landing-experience .map-company-list button strong .provider-name-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.provider-verification { width:15px; height:15px; flex:none; }
+.provider-verification.is-physical,.provider-verification.is-online { stroke-width:2.4; }
+.provider-verification.is-physical path:first-of-type { color:#1d9bf0; fill:#1d9bf0; }
+.provider-verification.is-online path:first-of-type { color:#9aa5b1; fill:#9aa5b1; }
+.provider-verification.is-physical path:nth-of-type(2),.provider-verification.is-online path:nth-of-type(2) { color:#fff; }
+.provider-incomplete-mark { display:inline-flex; flex:none; align-items:center; gap:4px; }
+.provider-verification.is-incomplete { width:13px; height:13px; color:#a8b0b6; stroke-width:2.2; }
+.provider-incomplete-mark em { padding:1px 6px; border-radius:99px; color:#6d777e; background:#eef0f2; font-size:10px; font-style:normal; font-weight:700; letter-spacing:.2px; }
 
 @media(min-width:761px) {
   .landing-experience .metrics-hud,

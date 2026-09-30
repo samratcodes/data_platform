@@ -14,7 +14,7 @@ export type ListingApplication = {
   huggingface_url: string | null; website_url: string | null; profile_description: string;
   capacity: string; capture_environments: string[]; provider_slug: string | null;
   office_images: StoredAsset[]; company_logo: StoredAsset | null; cover_image: string | null; facility_details: unknown;
-  status: string; verification_level: string;
+  status: string; verification_level: string; company_focus?: string | null;
 };
 
 const publicAssetUrl = (key: string) => `/api/company-assets?public=1&key=${encodeURIComponent(key)}`;
@@ -25,24 +25,26 @@ export const listingSlug = (application: Pick<ListingApplication, "id" | "busine
 
 /**
  * Publishes (or refreshes) the public map listing built from an application.
+ * An "incomplete" listing only needs a location: it shows whatever logo and images exist, in grey.
  * Returns an error message when the application cannot be published; the caller rolls back.
  */
 export async function publishListing(client: PoolClient, application: ListingApplication, level: string): Promise<string | null> {
   const slug = listingSlug(application);
   const isFacility = application.application_kind === "facility";
-  if (!application.maps_url || application.city === null || application.country === null || application.longitude === null || application.latitude === null) {
-    return "This submission is missing its required Google Maps location.";
+  const incomplete = level === "incomplete";
+  if (application.city === null || application.country === null || application.longitude === null || application.latitude === null || (!incomplete && !application.maps_url)) {
+    return incomplete ? "Add a location (city, country, and map pin) before publishing this listing as incomplete." : "This submission is missing its required Google Maps location.";
   }
   const companyApproved = await client.query("SELECT 1 FROM supplier_applications WHERE user_id = $1 AND application_kind = 'company' AND status = 'approved' LIMIT 1", [application.user_id]);
   if (isFacility && !companyApproved.rowCount) return "Approve the data company before approving one of its facilities.";
-  if (!isFacility && !application.company_logo?.key) return "This company has not uploaded its required logo. Ask the supplier to add one before approving.";
+  if (!incomplete && !isFacility && !application.company_logo?.key) return "This company has not uploaded its required logo. Ask the supplier to add one before approving.";
   const uploadedPhotos = application.office_images.map((asset) => publicAssetUrl(asset.key));
-  if (isFacility && !uploadedPhotos.length && !application.hardware_pictures.length) return "This facility submission is missing its required photo evidence.";
+  if (!incomplete && isFacility && !uploadedPhotos.length && !application.hardware_pictures.length) return "This facility submission is missing its required photo evidence.";
   // Companies show uploaded office images when present; facilities show uploads alongside linked photos.
   let mapPhotos = isFacility
     ? [...uploadedPhotos, ...application.hardware_pictures]
     : uploadedPhotos.length ? uploadedPhotos : application.hardware_pictures;
-  if (!isFacility && !mapPhotos.length) {
+  if (!incomplete && !isFacility && !mapPhotos.length && application.maps_url) {
     mapPhotos = (await resolveGoogleMapsPlace(application.maps_url)).photos;
     if (!mapPhotos.length) return "Google Maps did not expose a public location image for this company. Ask the supplier to upload office images or use a Google Maps place link with a public photo.";
     await client.query("UPDATE supplier_applications SET hardware_pictures = $1::jsonb WHERE id = $2", [JSON.stringify(mapPhotos), application.id]);
@@ -57,7 +59,8 @@ export async function publishListing(client: PoolClient, application: ListingApp
     ? (await client.query<{ company_logo: StoredAsset | null }>("SELECT company_logo FROM supplier_applications WHERE user_id = $1 AND application_kind = 'company' ORDER BY submitted_at DESC LIMIT 1", [application.user_id])).rows[0]?.company_logo
     : null);
   const factory = isFacility ? parseFacilityDetails(application.facility_details) : null;
-  const media = { src: mapPhotos[0], alt: `${application.business_name} ${isFacility ? "facility" : "company"}`, kind: "image", label: factory ? `${factoryCategoryLabel(factory)} facility` : isFacility ? "Supplier facility" : "Company image" };
+  // Incomplete listings may have no images yet; the logo stands in as their picture.
+  const media = { src: mapPhotos[0] ?? (logo ? publicAssetUrl(logo.key) : "/brand-logo.png"), alt: `${application.business_name} ${isFacility ? "facility" : "company"}`, kind: "image", label: factory ? `${factoryCategoryLabel(factory)} facility` : isFacility ? "Supplier facility" : application.company_focus === "devices" ? "Device store" : "Company image" };
   const profile = {
     description: application.profile_description,
     dataStreams: application.modalities,
@@ -71,6 +74,8 @@ export async function publishListing(client: PoolClient, application: ListingApp
     logoIsPhoto: Boolean(isFacility && application.company_logo?.key),
     links: { linkedin: application.linkedin_url, twitter: application.twitter_url, huggingFace: application.huggingface_url, website: application.website_url, maps: application.maps_url },
   };
+  // Device companies are listed as stores, so the map and profile show their products instead of facilities.
+  const providerType = !isFacility && application.company_focus === "devices" ? "Device Supplier" : application.provider_type;
   await client.query(`
     INSERT INTO providers (owner_id, slug, name, city, country, longitude, latitude, provider_type, modalities, media, profile, verification_level, status, is_demo)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12,'approved',FALSE)
@@ -78,8 +83,8 @@ export async function publishListing(client: PoolClient, application: ListingApp
       city = EXCLUDED.city, country = EXCLUDED.country, longitude = EXCLUDED.longitude,
       latitude = EXCLUDED.latitude, provider_type = EXCLUDED.provider_type,
       modalities = EXCLUDED.modalities, media = EXCLUDED.media, profile = EXCLUDED.profile,
-      verification_level = EXCLUDED.verification_level, status = 'approved', is_demo = FALSE, updated_at = NOW()
-  `, [application.user_id, slug, application.business_name, application.city, application.country, application.longitude, application.latitude, application.provider_type, JSON.stringify(application.modalities), JSON.stringify(media), JSON.stringify(profile), level]);
+      verification_level = EXCLUDED.verification_level, status = 'approved', is_demo = FALSE, claim_email = NULL, updated_at = NOW()
+  `, [application.user_id, slug, application.business_name, application.city, application.country, application.longitude, application.latitude, providerType, JSON.stringify(application.modalities), JSON.stringify(media), JSON.stringify(profile), level]);
   await client.query("UPDATE supplier_applications SET provider_slug = $1 WHERE id = $2", [slug, application.id]);
   return null;
 }
@@ -108,4 +113,33 @@ export async function refreshListingAfterAdminEdit(applicationId: string): Promi
   } finally {
     client.release();
   }
+}
+
+/**
+ * Links the company application a supplier just submitted to the grey listing an admin added for them:
+ * one they already own through the account the listing created, or one reserved for their email.
+ * Approving the application then completes that same pin instead of adding a second one, and the
+ * listing's logo stands in until the company uploads its own. Returns the claimed slug, if any.
+ */
+export async function claimListingFor(client: PoolClient, user: { id: string; email: string }, applicationId: string) {
+  const listing = (await client.query<{ slug: string; logo: string | null }>(`
+    UPDATE providers SET owner_id = $1, updated_at = NOW()
+    WHERE slug = (
+      SELECT slug FROM providers
+      WHERE (owner_id = $1 OR (owner_id IS NULL AND claim_email IS NOT NULL AND LOWER(claim_email) = LOWER($2)))
+        AND verification_level = 'incomplete' AND provider_type IN ('Data Company', 'Device Supplier')
+        AND NOT EXISTS (SELECT 1 FROM supplier_applications WHERE provider_slug = providers.slug AND id <> $3)
+      ORDER BY created_at ASC LIMIT 1
+    )
+    RETURNING slug, profile->>'logo' AS logo
+  `, [user.id, user.email, applicationId])).rows[0];
+  if (!listing) return null;
+  await client.query("UPDATE supplier_applications SET provider_slug = $1 WHERE id = $2 AND provider_slug IS NULL", [listing.slug, applicationId]);
+  const key = listing.logo ? new URL(listing.logo, "http://local").searchParams.get("key") : null;
+  if (key?.startsWith("company-submissions/admin-listings/")) {
+    const extension = key.split(".").pop()?.toLowerCase();
+    const contentType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
+    await client.query("UPDATE supplier_applications SET company_logo = $1::jsonb WHERE id = $2 AND company_logo IS NULL", [JSON.stringify({ key, name: "Company logo", contentType }), applicationId]);
+  }
+  return listing.slug;
 }

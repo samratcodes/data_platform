@@ -1,0 +1,99 @@
+/* ─────────────────────────────────────────────────────────────
+   Device manufacturer store (/operators/[slug] for device
+   companies), told like the company landing page: factory hero
+   with its lead device, lineup bento, catalogue, and ordering.
+   ───────────────────────────────────────────────────────────── */
+
+.store-landing { background:radial-gradient(ellipse at 8% -8%,#e3f5f8 0,transparent 52%),radial-gradient(ellipse at 96% 4%,#eceffd 0,transparent 42%),linear-gradient(180deg,#f3f8f9,#fff 34%); }
+
+.stx-owner-bar { display:flex; align-items:center; gap:8px; margin:0 0 14px; padding:10px 14px; border:1px solid var(--device-line); border-radius:12px; color:#0e6070; background:var(--device-tint); font-size:13px; font-weight:600; }
+
+/* Hero */
+.stx-hero { background:#071d22; }
+.stx-hero .opx-hero-veil { background:linear-gradient(95deg,rgb(5 24 29 / 95%) 0%,rgb(5 24 29 / 74%) 44%,rgb(5 24 29 / 20%) 100%),linear-gradient(0deg,rgb(5 24 29 / 85%),transparent 55%); }
+.stx-hero .opx-aurora-a { background:#1597ab; }
+.stx-hero .opx-aurora-b { background:#6366f1; }
+.stx-hero .opx-word > span { background:linear-gradient(100deg,#fff 30%,#b3eef6 70%,#c7c9ff); -webkit-background-clip:text; background-clip:text; }
+.stx-hero .op-chip svg,.stx-hero .opx-hero-place svg { color:#7fdcea; }
+.stx-hero .opx-chip-live i { background:#5ad7ea; }
+.stx-hero.is-plain { min-height:min(70vh,600px); background:radial-gradient(ellipse at 80% 20%,#0f4250 0,transparent 55%),radial-gradient(ellipse at 10% 90%,#1b2a5e 0,transparent 50%),#071d22; }
+.stx-hero.is-incomplete { background:linear-gradient(135deg,#2a3136,#434b51); }
+.stx-hero.is-incomplete .opx-word > span { background:none; color:#eef1f3; }
+.stx-hero.is-incomplete .opx-hero-veil { background:none; }
+.op-chip-incomplete { border-color:#d3d8dc; color:#5e676e; background:#f1f3f5; }
+.opx-hero .op-chip-incomplete { border-color:#ffffff33; color:#e4e8eb; background:#ffffff14; }
+.op-chip.type-device svg { color:var(--device); }
+
+/* Featured device card in the hero */
+.stx-spotlight { flex:none; display:grid; gap:12px; width:290px; padding:14px; border:1px solid #ffffff26; border-radius:20px; background:linear-gradient(160deg,#ffffff24,#ffffff08); box-shadow:0 24px 60px #00000055; backdrop-filter:blur(18px); animation:opx-float 6s ease-in-out infinite; }
+.stx-spotlight header { display:flex; align-items:center; gap:9px; color:#bfe6ee; font-size:10px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; }
+.stx-spotlight header .opx-pulse { background:#5ad7ea; }
+.stx-spotlight-photo { position:relative; display:grid; overflow:hidden; aspect-ratio:4 / 3; place-items:center; border-radius:14px; background:#ffffff12; }
+.stx-spotlight-photo img { object-fit:cover; transition:transform .6s cubic-bezier(.22,1,.36,1); }
+.stx-spotlight-photo:hover img { transform:scale(1.05); }
+.stx-spotlight-photo .product-photo-placeholder { color:#ffffff80; background:none; }
+.stx-spotlight-copy small { color:#9fd3dd; font-size:11px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; }
+.stx-spotlight-copy strong { display:block; margin-top:3px; color:#fff; font-size:17px; letter-spacing:-.3px; }
+.stx-spotlight-copy dl { display:grid; gap:4px; margin:10px 0 0; }
+.stx-spotlight-copy dl div { display:flex; justify-content:space-between; gap:10px; font-size:12px; }
+.stx-spotlight-copy dt { color:#9bbcc4; }
+.stx-spotlight-copy dd { overflow:hidden; margin:0; color:#e8f6f9; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+.stx-spotlight footer { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:12px; border-top:1px solid #ffffff1f; }
+.stx-spotlight footer span { color:#fff; font-size:14px; font-weight:700; }
+.stx-spotlight footer a { display:inline-flex; align-items:center; gap:5px; padding:7px 12px; border-radius:99px; color:#062a31; background:#8ee6f2; font-size:12.5px; font-weight:750; }
+.stx-spotlight footer a:hover { background:#fff; }
+
+/* Stats in the device palette */
+.stx-stats strong { background:linear-gradient(100deg,var(--device),#6366f1); -webkit-background-clip:text; background-clip:text; }
+.stx-stats article::after { background:linear-gradient(90deg,var(--device),#6366f1); }
+.store-landing .opx-eyebrow { color:var(--device-deep); }
+.store-landing .opx-eyebrow i { background:linear-gradient(90deg,var(--device),#6366f1); }
+.store-landing .opx-icon { color:var(--device-deep); background:linear-gradient(135deg,#e2f5f8,#ebecff); }
+.store-landing .op-modalities span { border-color:var(--device-line); color:#0e6070; background:var(--device-tint); }
+.store-landing .opx-marquee svg { color:var(--device); }
+.store-landing .opx-marquee span { color:#1f4d57; }
+
+/* Lineup bento */
+.stx-lineup { display:grid; gap:14px; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); grid-template-rows:repeat(2,minmax(0,1fr)); min-height:520px; }
+.stx-lineup.is-2 { grid-template-rows:1fr; min-height:420px; }
+.stx-lineup > div:first-child { grid-row:1 / span 2; }
+.stx-lineup.is-2 > div:first-child { grid-row:auto; }
+.stx-lineup > div { min-height:0; }
+.stx-lineup-card { position:relative; isolation:isolate; display:flex; overflow:hidden; height:100%; min-height:240px; align-items:flex-end; border-radius:22px; color:#fff; background:#0b2a31; box-shadow:0 18px 48px #0b2a3122; transition:transform .35s cubic-bezier(.22,1,.36,1),box-shadow .35s ease; }
+.stx-lineup-card:hover { box-shadow:0 26px 60px #0b2a3133; transform:translateY(-4px); }
+.stx-lineup-photo { position:absolute; z-index:-2; inset:0; display:grid; place-items:center; }
+.stx-lineup-photo img { object-fit:cover; transition:transform .8s cubic-bezier(.22,1,.36,1); }
+.stx-lineup-card:hover .stx-lineup-photo img { transform:scale(1.06); }
+.stx-lineup-photo .product-photo-placeholder { color:#ffffff55; background:none; }
+.stx-lineup-card::before { content:""; position:absolute; z-index:-1; inset:0; background:linear-gradient(0deg,rgb(4 22 27 / 92%) 0%,rgb(4 22 27 / 35%) 45%,transparent 75%); }
+.stx-lineup-copy { display:grid; gap:6px; width:100%; padding:22px; }
+.stx-lineup-copy small { color:#a8dde6; font-size:11px; font-weight:750; letter-spacing:.8px; text-transform:uppercase; }
+.stx-lineup-copy strong { font-size:20px; letter-spacing:-.4px; line-height:1.15; }
+.stx-lineup-card.is-lead .stx-lineup-copy strong { font-size:clamp(24px,2.6vw,34px); letter-spacing:-.8px; }
+.stx-lineup-data { display:flex; flex-wrap:wrap; gap:5px; }
+.stx-lineup-data em { padding:3px 9px; border:1px solid #ffffff2e; border-radius:99px; color:#e3f6f9; background:#ffffff14; font-size:11.5px; font-style:normal; backdrop-filter:blur(6px); }
+.stx-lineup-copy b { display:inline-flex; align-items:center; gap:6px; margin-top:4px; color:#fff; font-size:14px; }
+.stx-lineup-copy b svg { transition:transform .2s ease; }
+.stx-lineup-card:hover .stx-lineup-copy b svg { transform:translate(2px,-2px); }
+
+/* Catalogue sits flush on the page instead of inside a panel. */
+.stx-catalogue .product-browser { margin-top:0; }
+
+/* CTA */
+.stx-cta { background:linear-gradient(120deg,#05232a,#0d3d4a 55%,#252a6b); background-size:200% 200%; }
+.stx-cta .opx-cta-orb-a { background:#1597ab; }
+.stx-cta .opx-cta-orb-b { background:#6366f1; }
+.stx-cta .opx-eyebrow { color:#8ee6f2; }
+.stx-cta .opx-eyebrow i { background:#8ee6f2; }
+.stx-cta-facts { display:grid; gap:10px; margin:0; padding:0; grid-template-columns:repeat(2,minmax(0,1fr)); list-style:none; }
+.stx-cta-facts li { display:grid; gap:4px; padding:16px; border:1px solid #ffffff1f; border-radius:16px; background:#ffffff0d; backdrop-filter:blur(10px); }
+.stx-cta-facts svg { color:#8ee6f2; }
+.stx-cta-facts strong { overflow:hidden; margin-top:6px; font-size:24px; letter-spacing:-.6px; text-overflow:ellipsis; white-space:nowrap; }
+.stx-cta-facts span { color:#a9c9d0; font-size:12px; }
+
+@media(max-width:1100px) { .stx-spotlight { display:none; } }
+@media(max-width:760px) {
+  .stx-lineup,.stx-lineup.is-2 { min-height:0; grid-template-columns:1fr; grid-template-rows:none; }
+  .stx-lineup > div:first-child { grid-row:auto; }
+  .stx-lineup-card { min-height:260px; }
+}

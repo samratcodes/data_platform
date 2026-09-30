@@ -18,14 +18,16 @@ type Props = {
   requests: SupplierAccessRequest[];
   busy: string;
   onStatus: (id: string, status: "reviewing" | "accepted" | "declined") => void;
+  /** Renders only the list, for a dashboard section that brings its own heading. */
+  embedded?: boolean;
 };
 
-export default function SupplierRequests({ requests, busy, onStatus }: Props) {
-  return <section className="supplier-requests" aria-labelledby="buyer-requests-title">
-    <div className="supplier-heading">
+export default function SupplierRequests({ requests, busy, onStatus, embedded = false }: Props) {
+  return <section className={`supplier-requests ${embedded ? "is-embedded" : ""}`} aria-labelledby={embedded ? undefined : "buyer-requests-title"}>
+    {!embedded && <div className="supplier-heading">
       <div><span className="section-kicker">BUYER PIPELINE</span><h2 id="buyer-requests-title">Data access requests</h2></div>
       <span className="request-count">{requests.length} total</span>
-    </div>
+    </div>}
     {requests.length === 0 ? <div className="workspace-empty"><Clock3/><div><strong>No access requests yet</strong><p>New buyer requests for your approved listings will appear here.</p></div></div> : <div className="request-list">
       {requests.map((request) => <article key={request.id}>
         <div className="request-person"><span><UserRound/></span><div><strong>{request.buyer_name}</strong><a href={`mailto:${request.buyer_email}`}><Mail/>{request.buyer_email}</a></div><StatusBadge status={request.status.toLowerCase()}/></div>

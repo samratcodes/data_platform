@@ -14,6 +14,7 @@ const protectedRoutes: readonly RouteRule[] = [
   { prefix: "/dashboard" },
   { prefix: "/settings" },
   { prefix: "/operators" },
+  { prefix: "/devices" },
 ];
 
 /** Pages that only make sense for signed-out visitors. */

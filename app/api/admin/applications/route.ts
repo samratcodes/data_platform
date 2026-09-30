@@ -8,9 +8,11 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const kind = params.get("kind");
   const status = params.get("status");
+  const focus = params.get("focus");
   const applications = await listApplications({
     kind: kind && kinds.has(kind) ? kind : undefined,
     status: status && statuses.has(status) ? status : undefined,
+    focus: focus === "devices" || focus === "collection" ? focus : undefined,
   });
   return privateJson({ applications });
 }

@@ -1,12 +1,13 @@
 import type { PublicFacilityDetails } from "@/lib/facility";
 
-export type OrganizationType = "Facility" | "Data Company" | "Robotics";
+export type OrganizationType = "Facility" | "Data Company" | "Robotics" | "Device Supplier";
 
 export type DataModality =
   "Egocentric video" | "Exocentric video" | "Speech" | "Images";
 
 export interface NodeData {
-  verificationLevel?: "online" | "physical";
+  /** "incomplete" listings show only a logo, name, and location, in grey and after every verified listing. */
+  verificationLevel?: "online" | "physical" | "incomplete";
   id: number;
   slug: string;
   name: string;
@@ -22,6 +23,10 @@ export interface NodeData {
     slug: string;
   };
   modalities: DataModality[];
+  /** Approved facilities listed under this data company; they appear on the map once the company is opened. */
+  facilityCount?: number;
+  /** Published products in this device supplier's store. */
+  productCount?: number;
   media: {
     src: string;
     alt: string;

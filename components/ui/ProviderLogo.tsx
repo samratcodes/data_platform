@@ -15,22 +15,24 @@ type Props = {
   className?: string;
   /** Always fill the circle, e.g. for a facility profile photo. */
   cover?: boolean;
+  /** Incomplete listings show their logo in grey, without the category colour. */
+  incomplete?: boolean;
 };
 
 export const providerInitials = (name: string) => name.split(/\s+/).map((part) => part[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
-export const providerTypeClass = (type?: PublicOperator["type"]) => type === "Facility" ? "is-facility" : type === "Robotics" ? "is-robotics" : "is-company";
+export const providerTypeClass = (type?: PublicOperator["type"]) => type === "Facility" ? "is-facility" : type === "Robotics" ? "is-robotics" : type === "Device Supplier" ? "is-device" : "is-company";
 
 /**
  * Round provider logo used across the map, directories, and profiles.
  * Square logos fill the circle; wide wordmarks are contained on a matching background
  * (see `analyzeLogo`); `cover` forces a fill for photos. Falls back to initials if the logo is missing or fails to load.
  */
-export default function ProviderLogo({ name, logo, type, size = 44, className = "", cover = false }: Props) {
+export default function ProviderLogo({ name, logo, type, size = 44, className = "", cover = false, incomplete = false }: Props) {
   const [failed, setFailed] = useState(false);
   const [fit, setFit] = useState<LogoFit>(defaultLogoFit);
   const showLogo = Boolean(logo) && !failed;
   return <span
-    className={`provider-logo-disc ${providerTypeClass(type)} ${showLogo ? (cover || fit.cover ? "is-cover" : "is-contain") : "is-fallback"} ${className}`}
+    className={`provider-logo-disc ${incomplete ? "is-incomplete" : providerTypeClass(type)} ${showLogo ? (cover || fit.cover ? "is-cover" : "is-contain") : "is-fallback"} ${className}`}
     style={{ width: size, height: size, fontSize: Math.max(10, Math.round(size * .36)), ...(showLogo ? { background: fit.background } : {}) }}
     aria-hidden="true"
   >

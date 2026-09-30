@@ -42,7 +42,7 @@
 .map-tools button:hover { color:#38d2ad; background:#213c46; }
 .map-tools > div > button:first-child { border-bottom:1px solid #ffffff13; border-radius:0; }
 .explorer-footer { position:absolute; bottom:0; left:0; right:0; height:83px; display:flex; align-items:center; justify-content:space-between; padding:0 27px; z-index:6; background:linear-gradient(0deg,#0b1422ed,#0b1422aa); border-top:1px solid #7291ad14; gap:15px; }
-.network-status { display:flex; align-items:center; gap:12px; font-size:10px; color:#8499ac; flex-wrap:wrap; max-width:390px; }
+.network-status { display:flex; align-items:center; gap:12px; font-size:10px; color:#8499ac; flex-wrap:wrap; max-width:none; white-space:nowrap; }
 .network-status strong { font-size:8px; letter-spacing:1.5px; font-weight:500; color:#b4c9d6; }
 .network-status b { color:#cbdfeb; font-weight:500; }
 .footer-divider { width:1px; height:13px; background:#ffffff17; }

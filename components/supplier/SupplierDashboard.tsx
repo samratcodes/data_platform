@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { isPublicAsset } from "@/lib/image";
-import { ArrowRight, Building2, Eye, Factory, FileQuestion, ListChecks, MessageSquare, Pencil, Plus, Zap } from "lucide-react";
-import StatusBadge from "@/components/ui/StatusBadge";
+import { ArrowRight, ArrowUpRight, Database, Factory, Pencil, Plus } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { formatCount, parseFacilityDetails } from "@/lib/facility";
+import type { SentEnquiry } from "@/lib/devices";
 import type { User } from "@/types/app";
 import type { SupplierListing } from "@/types/supplier";
 import Inbox from "@/components/messaging/Inbox";
 import SupplierRequests, { type SupplierAccessRequest } from "./SupplierRequests";
 import FacilityCard from "./FacilityCard";
-import SupplierShell, { SideCard, SideSteps } from "./SupplierShell";
+import CompanyProfileCard from "./CompanyProfileCard";
+import SupplierShell from "./SupplierShell";
+import SentEnquiries from "./SentEnquiries";
+import { DeskEmpty, DeskGrid, DeskHeader, DeskLedger, DeskProgress, DeskSection, DeskSideBlock, useGreeting } from "./Desk";
 import { isLive } from "./facility-status";
 
 type Dashboard = {
@@ -22,10 +23,10 @@ type Dashboard = {
   accessRequests: SupplierAccessRequest[];
 };
 
-const PREVIEW_COUNT = 3;
+const PREVIEW_COUNT = 4;
 
-/** The data-company home: activity across every listing, a glance at facilities, and buyer requests. */
-export default function SupplierDashboard({ user }: { user: User }) {
+/** The data-company home: facilities, buyer requests, and the devices it is sourcing, with conversations beside them. */
+export default function SupplierDashboard({ user, sentEnquiries }: { user: User; sentEnquiries: SentEnquiry[] }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
   const [requestBusy, setRequestBusy] = useState("");
@@ -41,66 +42,74 @@ export default function SupplierDashboard({ user }: { user: User }) {
   const liveListings = data?.listings.filter(isLive) ?? [];
   const total = (key: "profile_views" | "access_requests") => liveListings.reduce((sum, listing) => sum + listing[key], 0);
   const workers = facilities.reduce((sum, listing) => sum + (parseFacilityDetails(listing.facility_details)?.totalWorkers ?? 0), 0);
-  const journey = [
-    { title: "Company profile", detail: "Submitted for review", done: Boolean(company) },
-    { title: "Company approved", detail: "Unlocks facility applications", done: companyApproved },
-    { title: "First facility", detail: "Apply with workforce, documents, and photos", done: facilities.length > 0 },
-    { title: "Live on the map", detail: "Buyers can find and contact you", done: facilities.some(isLive) },
-  ].map((item, index, items) => ({ ...item, current: !item.done && items.slice(0, index).every((previous) => previous.done) }));
+  const openRequests = data?.accessRequests.filter((request) => request.status !== "accepted" && request.status !== "declined").length ?? 0;
+  const replied = sentEnquiries.filter((enquiry) => enquiry.status === "replied").length;
+  const greeting = useGreeting(user.name);
   const apply = companyApproved
-    ? <Link className="primary-button" href="/supplier/facilities/new"><Plus size={15}/>Apply for a new facility</Link>
-    : <span className="primary-button is-disabled" aria-disabled="true" title="Available after your company is approved"><Plus size={15}/>Apply for a new facility</span>;
+    ? <Link className="primary-button" href="/supplier/facilities/new"><Plus size={15}/>Add facility</Link>
+    : <span className="primary-button is-disabled" aria-disabled="true" title="Available after your company is approved"><Plus size={15}/>Add facility</span>;
 
   return <SupplierShell
-    user={user} active="supplier" eyebrow="DATA COMPANY WORKSPACE" title={company?.business_name || "Your workspace"}
-    description="Activity across your company and facilities, and the buyer requests waiting on you."
-    actions={<><Link className="secondary-button" href="/supplier/facilities"><Factory size={15}/>Facilities</Link>{apply}</>}
+    user={user} active="supplier"
     notice={error && <p className="form-error">{error}</p>}
-    aside={<>
-      {company && <SideCard title="Company" icon={<Building2 size={16}/>}>
-        <div className="side-company">
-          <span className="provider-logo provider-logo-small">{user.companyLogo ? <Image src={user.companyLogo} alt="" fill unoptimized={!isPublicAsset(user.companyLogo)} sizes="40px"/> : <Building2/>}</span>
-          <div><strong>{company.business_name}</strong><small>{isLive(company) ? `${company.profile_views} profile views` : "Data company profile"}</small></div>
-          <StatusBadge status={company.status}/>
-        </div>
-        {company.status === "rejected" && company.admin_notes && <p className="factory-card-feedback">{company.admin_notes}</p>}
-        <Link className="secondary-button" href="/onboarding"><Pencil size={14}/>Edit company profile</Link>
-      </SideCard>}
-      {data && !journey.every((item) => item.done) && <SideCard title="Getting listed" icon={<ListChecks size={16}/>}><SideSteps items={journey}/></SideCard>}
-      <SideCard title="Quick actions" icon={<Zap size={16}/>} tone="accent">
-        <div className="side-actions">
-          <Link href="/supplier/facilities">View all facilities<ArrowRight size={14}/></Link>
-          {companyApproved && <Link href="/supplier/facilities/new">Apply for a new facility<ArrowRight size={14}/></Link>}
-          <Link href="/onboarding">Update company profile<ArrowRight size={14}/></Link>
-          <Link href="/map">See the public map<ArrowRight size={14}/></Link>
-        </div>
-      </SideCard>
-    </>}
+    header={<DeskHeader
+      greeting={greeting} logo={user.companyLogo} name={company?.business_name || user.companyName || user.name} kind="Data collection company" kindIcon={<Database size={13}/>}
+      place={[company?.city, company?.country].filter(Boolean).join(", ")} status={company?.status}
+      actions={<>
+        <Link className="secondary-button" href="/onboarding#company-profile"><Pencil size={14}/>Edit profile</Link>
+        {company?.provider_slug && isLive(company) && <Link className="secondary-button" href={`/operators/${company.provider_slug}`}>Public profile<ArrowUpRight size={14}/></Link>}
+        {apply}
+      </>}
+      notice={company?.status === "rejected" && company.admin_notes ? <p className="factory-card-feedback">{company.admin_notes}</p> : null}
+    />}
   >
-    <div className="supplier-metrics">
-      <article><Factory/><strong>{facilities.length}</strong><span>Facilities · {formatCount(workers)} workers</span></article>
-      <article><Eye/><strong>{total("profile_views")}</strong><span>Profile views</span></article>
-      <article><FileQuestion/><strong>{total("access_requests")}</strong><span>Data requests</span></article>
-      <article><MessageSquare/><strong>{data?.conversations.length ?? 0}</strong><span>Conversations</span></article>
-    </div>
+    <DeskLedger items={[
+      { label: "Facilities", value: data ? facilities.length : "–", detail: `${formatCount(workers)} workers`, href: "/supplier/facilities" },
+      { label: "Profile views", value: data ? total("profile_views") : "–", detail: "across live listings" },
+      { label: "Open data requests", value: data ? openRequests : "–", detail: `${total("access_requests")} total`, highlight: openRequests > 0, href: "#data-requests-title" },
+      { label: "Device enquiries", value: sentEnquiries.length, detail: `${replied} replied`, highlight: replied > 0, href: "#device-enquiries-title" },
+    ]}/>
+    {data && <DeskProgress steps={[
+      { title: "Company profile", done: Boolean(company), href: "/onboarding" },
+      { title: "Company approval", done: companyApproved },
+      { title: "Add your first facility", done: facilities.length > 0, href: "/supplier/facilities/new" },
+      { title: "Go live on the map", done: facilities.some(isLive) },
+    ]}/>}
 
-    <section className="supplier-factories" aria-labelledby="facilities-title">
-      <div className="supplier-heading"><div><span className="section-kicker">FACILITIES</span><h2 id="facilities-title">Your facilities {facilities.length > 0 && <small>{facilities.length}</small>}</h2></div>{facilities.length > 0 && <Link className="secondary-button" href="/supplier/facilities">View all<ArrowRight size={14}/></Link>}</div>
-      {!data ? <p className="workspace-empty">Loading facilities…</p>
-        : facilities.length ? <div className="factory-grid">{facilities.slice(0, PREVIEW_COUNT).map((listing) => <FacilityCard key={listing.id} listing={listing} companyLogo={user.companyLogo}/>)}</div>
-          : <div className="factory-empty">
-            <span><Factory/></span>
-            <div><strong>{companyApproved ? "Apply for your first facility" : "Your facilities will appear here"}</strong><p>{companyApproved ? "Tell us the facility type, workforce, and location, and add its documents and photos. Once approved, it gets its own pin on the map." : "Facility applications unlock once your company profile is approved."}</p></div>
-            {apply}
-          </div>}
-    </section>
+    <DeskGrid side={<>
+      <CompanyProfileCard user={user} name={company?.business_name || user.companyName || user.name} detail={[company?.city, company?.country].filter(Boolean).join(", ") || "Data collection company"}
+        feedback={company?.status === "rejected" ? company.admin_notes : null} publicHref={company?.provider_slug && isLive(company) ? `/operators/${company.provider_slug}` : null}/>
+      <DeskSideBlock title="Conversations"><Inbox/></DeskSideBlock>
+      <DeskSideBlock title="Shortcuts">
+        <nav className="desk-links">
+          <Link href="/supplier/facilities">All facilities<ArrowRight size={14}/></Link>
+          <Link href="/devices">Device marketplace<ArrowRight size={14}/></Link>
+          <Link href="/map">Explore map<ArrowRight size={14}/></Link>
+          <Link href="/onboarding">Company profile<ArrowRight size={14}/></Link>
+        </nav>
+      </DeskSideBlock>
+    </>}>
+      <DeskSection id="facilities-title" index={1} title="Facilities" count={facilities.length} action={<Link className="desk-link" href="/supplier/facilities">{facilities.length ? "Manage facilities" : "Facilities"}<ArrowRight size={14}/></Link>}>
+        {!data ? <p className="desk-quiet">Loading facilities…</p>
+          : facilities.length ? <div className="factory-grid desk-facility-grid">{facilities.slice(0, PREVIEW_COUNT).map((listing) => <FacilityCard key={listing.id} listing={listing} companyLogo={user.companyLogo}/>)}</div>
+            : <DeskEmpty icon={<Factory size={18}/>}
+              title={companyApproved ? "Add your first facility" : "Facilities unlock after approval"}
+              text={companyApproved ? "Tell us the facility type, workforce, and location. Once approved, it gets its own pin on the map." : "Your facilities appear here once your company profile is approved."}
+              action={companyApproved ? apply : undefined}/>}
+      </DeskSection>
 
-    <SupplierRequests requests={data?.accessRequests ?? []} busy={requestBusy} onStatus={async (requestId, status) => {
-      setRequestBusy(requestId); setError("");
-      try { await api("/api/supplier/dashboard", { method: "PATCH", body: JSON.stringify({ action: "request-status", requestId, status }) }); await load(); }
-      catch (reason) { setError((reason as Error).message); }
-      finally { setRequestBusy(""); }
-    }}/>
-    <Inbox/>
+      <DeskSection id="data-requests-title" index={2} title="Data requests" count={openRequests}>
+        <SupplierRequests embedded requests={data?.accessRequests ?? []} busy={requestBusy} onStatus={async (requestId, status) => {
+          setRequestBusy(requestId); setError("");
+          try { await api("/api/supplier/dashboard", { method: "PATCH", body: JSON.stringify({ action: "request-status", requestId, status }) }); await load(); }
+          catch (reason) { setError((reason as Error).message); }
+          finally { setRequestBusy(""); }
+        }}/>
+      </DeskSection>
+
+      <DeskSection id="device-enquiries-title" index={3} title="Device enquiries" count={sentEnquiries.length} action={sentEnquiries.length > 0 && <Link className="desk-link" href="/devices">Browse devices<ArrowRight size={14}/></Link>}>
+        <SentEnquiries enquiries={sentEnquiries}/>
+      </DeskSection>
+    </DeskGrid>
   </SupplierShell>;
 }

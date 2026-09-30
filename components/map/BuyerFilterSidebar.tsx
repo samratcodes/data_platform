@@ -4,11 +4,11 @@ import {
   Building2,
   Check,
   ChevronLeft,
-  Factory,
   Layers3,
   MapPin,
   RotateCcw,
   Search,
+  Webcam,
   SlidersHorizontal,
 } from "lucide-react";
 
@@ -31,9 +31,10 @@ type Props = {
   onClear: () => void;
 };
 
+// Facilities are not a filter: they appear on the map when their data company is opened.
 const providerTypes = [
-  { value: "Facility", label: "Facilities", Icon: Factory },
   { value: "Data Company", label: "Data companies", Icon: Building2 },
+  { value: "Device Supplier", label: "Device companies", Icon: Webcam },
   { value: "Robotics", label: "Robotics", Icon: Bot },
 ] as const;
 

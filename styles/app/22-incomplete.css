@@ -1,0 +1,122 @@
+/* ─────────────────────────────────────────────────────────────
+   Incomplete listings: grey everywhere (logo, ring, badge), listed
+   after verified companies, and the admin screens that manage them.
+   ───────────────────────────────────────────────────────────── */
+
+.provider-logo-disc.is-incomplete { --logo-ink:#7c868d; --logo-ring:#a8b0b6; --logo-tint:#eef0f2; }
+.provider-logo-disc.is-incomplete img { filter:grayscale(1); opacity:.85; }
+.provider-logo-disc.is-incomplete.is-fallback { color:#7c868d; background:#eef0f2 !important; }
+.provider-card.is-incomplete h3,.map-company-list button.is-incomplete strong { color:#6d777e; }
+.provider-trust .is-incomplete { color:#7c868d !important; background:#f0f2f4 !important; }
+.verification-badge.is-incomplete { color:#66717a; background:#eef0f2; }
+.decision-levels label.is-incomplete.selected { border-color:#c3cad0; background:#f4f6f7; }
+
+/* Admin: Data companies views ------------------------------------ */
+.companies-views { display:flex; gap:4px; margin:0 0 16px; padding:4px; width:fit-content; max-width:100%; overflow-x:auto; border:1px solid var(--app-surface-line); border-radius:12px; background:var(--app-muted-surface); }
+.companies-views a { display:inline-flex; flex:none; align-items:center; gap:7px; padding:8px 14px; border-radius:9px; color:#56706a; font-size:13px; font-weight:650; }
+.companies-views a:hover { color:var(--fm-ink); }
+.companies-views a.active { color:var(--fm-ink); background:#fff; box-shadow:0 1px 3px rgb(20 40 60 / 10%); }
+.companies-views a.active svg { color:#1f8f73; }
+
+/* Admin: incomplete listings -------------------------------------- */
+.incomplete-intro { flex:1; min-width:220px; margin:0; color:#6b7f79; font-size:13px; line-height:1.5; }
+.incomplete-list { display:grid; margin:0; padding:0 18px; list-style:none; }
+.incomplete-list > li { display:flex; flex-wrap:wrap; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid #eef2f4; }
+.incomplete-list > li:last-child { border-bottom:0; }
+.incomplete-copy { display:grid; flex:1; min-width:200px; gap:2px; }
+.incomplete-copy strong { color:var(--fm-ink); font-size:14px; }
+.incomplete-copy a:hover strong { color:#1f8f73; }
+.incomplete-copy small { color:#7a8c87; font-size:12.5px; }
+.incomplete-state { display:grid; justify-items:start; gap:2px; min-width:190px; }
+.incomplete-state b { display:inline-flex; align-items:center; gap:6px; color:#56706a; font-size:12.5px; font-weight:700; }
+.incomplete-state b::before { width:7px; height:7px; border-radius:50%; background:#b7c1c6; content:""; }
+.incomplete-state.is-claimed b { color:#1f6e5a; }
+.incomplete-state.is-claimed b::before { background:#1f8f73; }
+.incomplete-state.is-review b { color:#8a5a13; }
+.incomplete-state.is-review b::before { background:#e0a43a; }
+.incomplete-state small { max-width:240px; overflow:hidden; color:#7a8c87; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.incomplete-actions { display:flex; align-items:center; gap:6px; }
+.incomplete-actions .secondary-button { min-height:34px; padding:6px 12px; font-size:12.5px; }
+.incomplete-actions .icon-button { width:34px; height:34px; border-color:var(--app-surface-line); color:#56706a; background:#fff; }
+.incomplete-actions .icon-button:hover { border-color:#b9ddd1; color:#1f8f73; background:#f3faf7; }
+.incomplete-actions .icon-button.is-danger:hover { border-color:#f0c4c4; color:#a24646; background:#fdf3f3; }
+
+/* Admin: add or edit an incomplete listing ------------------------ */
+.listing-editor-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:start; gap:28px; }
+.listing-editor-form { display:grid; gap:16px; min-width:0; }
+.listing-editor-form fieldset { display:grid; gap:14px; min-width:0; margin:0; padding:20px; border:1px solid var(--app-surface-line); border-radius:16px; background:#fff; }
+.listing-editor-form legend { float:left; display:flex; width:100%; align-items:center; gap:9px; margin-bottom:2px; padding:0; color:var(--fm-ink); font-size:15px; font-weight:750; }
+.listing-editor-form legend + * { clear:both; }
+.listing-editor-form legend span { display:grid; width:24px; height:24px; place-items:center; border-radius:50%; color:#fff; background:#1f8f73; font-size:12px; }
+.listing-editor-form legend small { margin-left:auto; color:#8a9c96; font-size:12px; font-weight:600; }
+.listing-hint { display:flex; align-items:center; gap:5px; color:#7a8c87; font-size:12px; font-weight:500; }
+.listing-editor-side { position:sticky; top:18px; display:grid; gap:12px; }
+.listing-preview { display:grid; gap:10px; padding:16px; border:1px solid var(--app-surface-line); border-radius:16px; background:var(--app-muted-surface); }
+.listing-preview-kicker { display:inline-flex; align-items:center; gap:6px; color:#7a8c87; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+.listing-preview-card { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--app-surface-line); border-radius:12px; background:#fff; }
+.listing-preview-card > div { display:grid; min-width:0; gap:3px; }
+.listing-preview-card strong { overflow:hidden; color:#6d777e; font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
+.listing-preview-card small { display:flex; align-items:center; gap:4px; color:#8a959c; font-size:12px; }
+.listing-preview-tags { display:flex; flex-wrap:wrap; gap:4px; }
+.listing-preview-tags em { padding:2px 7px; border-radius:99px; color:#66717a; background:#eef0f2; font-size:10.5px; font-style:normal; font-weight:700; }
+.listing-preview-link { display:flex; align-items:center; gap:5px; overflow:hidden; color:#7a8c87; font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.listing-checklist { display:flex; gap:14px; margin:0; padding:0 4px; list-style:none; }
+.listing-checklist li { display:inline-flex; align-items:center; gap:6px; color:#8a9c96; font-size:12.5px; font-weight:650; }
+.listing-checklist li > span { display:grid; width:16px; height:16px; place-items:center; border:1.5px solid #c9d3d7; border-radius:50%; }
+.listing-checklist li.is-done { color:#1f6e5a; }
+.listing-checklist li.is-done > span { border-color:#1f8f73; color:#fff; background:#1f8f73; }
+.listing-submit,.listing-cancel { justify-content:center; gap:8px; min-height:44px; }
+.listing-editor-side .form-error { margin:0; }
+
+@media(max-width:1080px) {
+  .listing-editor-layout { grid-template-columns:minmax(0,1fr); }
+  .listing-editor-side { position:static; grid-row:auto; }
+}
+@media(max-width:640px) {
+  .listing-editor-form fieldset { padding:14px; }
+  .incomplete-list { padding:0 12px; }
+  .incomplete-state { min-width:0; flex-basis:100%; padding-left:58px; }
+}
+
+/* Map key: grey pin for incomplete listings, shown only when some are on the map. */
+.legend-map-pin.incomplete-marker { color:#8c959c; background:#f1f3f4; }
+
+/* Company pages: how clients see an unverified company, until it is verified. */
+.verification-bar { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin:0 0 18px; padding:12px 14px; border:1px solid #f1d9a8; border-radius:14px; color:#6b4a12; background:#fff8ea; }
+.verification-bar-icon { display:grid; flex:none; width:34px; height:34px; place-items:center; border-radius:10px; color:#b7791f; background:#fdecc8; }
+.verification-bar p { display:grid; flex:1; min-width:220px; gap:2px; margin:0; }
+.verification-bar strong { color:#5a3d0c; font-size:14px; font-weight:750; }
+.verification-bar p span { color:#83622a; font-size:12.5px; line-height:1.45; }
+.verification-bar-action { display:inline-flex; flex:none; align-items:center; gap:6px; min-height:36px; padding:0 14px; border-radius:10px; color:#fff; background:#b7791f; font-size:13px; font-weight:700; }
+.verification-bar-action:hover { background:#9a6418; }
+.verification-bar.is-pending { border-color:#cfe0f5; color:#23466e; background:#f2f7fd; }
+.verification-bar.is-pending .verification-bar-icon { color:#2f6db3; background:#dde9f8; }
+.verification-bar.is-pending strong { color:#1c3a5c; }
+.verification-bar.is-pending p span { color:#4b6a8d; }
+.verification-bar.is-pending .verification-bar-action { border:1px solid #cfe0f5; color:#23466e; background:#fff; }
+.verification-bar.is-pending .verification-bar-action:hover { background:#e8f1fb; }
+.verification-bar.is-rejected { border-color:#f2c9c2; background:#fff5f3; }
+.verification-bar.is-rejected .verification-bar-icon { color:#b4453a; background:#fbdcd6; }
+.verification-bar.is-rejected .verification-bar-action { background:#b4453a; }
+.verification-bar.is-rejected .verification-bar-action:hover { background:#983a31; }
+@media(max-width:640px) { .verification-bar-action { width:100%; justify-content:center; } }
+.listing-prefill-note { display:flex; gap:10px; margin:0 0 16px; padding:12px 14px; border:1px solid #cfe6de; border-radius:12px; color:#2f5a4f; background:#f3faf7; font-size:13px; line-height:1.5; }
+.listing-prefill-note > svg { flex:none; width:18px; height:18px; margin-top:2px; color:#1f8f73; }
+.listing-prefill-note strong { display:block; color:#1d3f36; }
+
+/* Admin: every device across the device companies. */
+.admin-device { display:flex; align-items:center; gap:12px; min-width:0; }
+.admin-device-photo { position:relative; display:grid; width:44px; height:44px; flex:none; place-items:center; overflow:hidden; border:1px solid var(--app-surface-line); border-radius:10px; color:#0e7a8c; background:#f3f6f7; }
+.admin-device-photo img { object-fit:cover; }
+
+/* QA fixes: phone layouts for dashboard banner actions, admin view tabs, and the settings company heading. */
+.settings-company > .settings-card-heading { flex-wrap:wrap; }
+.settings-company > .settings-card-heading > div { flex:1; min-width:200px; }
+.settings-company > .settings-card-heading .status-badge { flex:none; align-self:center; }
+@media(max-width:760px) {
+  .desk-header .desk-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; }
+  .desk-header .desk-actions > * { justify-content:center; white-space:nowrap; }
+  .desk-header .desk-actions > .primary-button:last-child:nth-child(odd) { grid-column:1 / -1; }
+  .companies-views { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(max-content,1fr); width:100%; }
+  .companies-views a { justify-content:center; padding:8px 10px; font-size:12.5px; }
+}

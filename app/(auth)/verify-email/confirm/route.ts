@@ -3,6 +3,7 @@ import { homePathFor, type UserRole } from "@/lib/auth/roles";
 import { createSession } from "@/lib/auth/session";
 import { database, query } from "@/lib/db/client";
 import { consumeAuthToken } from "@/lib/integrations/email";
+import { claimReservedListing } from "@/lib/admin/incomplete";
 import { enqueueUserSheetSync } from "@/lib/integrations/sheet-sync-queue";
 import { cleanSingleLine } from "@/lib/security";
 
@@ -24,6 +25,9 @@ export async function GET(request: Request) {
   } finally {
     client.release();
   }
+  const account = (await query<{ role: UserRole }>("SELECT role FROM users WHERE id = $1", [consumed.user_id])).rows[0];
+  // A company an admin put on the map for this email becomes this account's once the email is verified.
+  if (account) await claimReservedListing({ id: consumed.user_id, email: consumed.email, role: account.role });
   await createSession(consumed.user_id);
   const { rows } = await query<{ role: UserRole }>("SELECT role FROM users WHERE id = $1", [consumed.user_id]);
   redirect(rows[0] ? homePathFor(rows[0].role) : "/map");

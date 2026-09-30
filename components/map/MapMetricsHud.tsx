@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Building2, Database, Activity } from "lucide-react";
+import { Building2, Database, Webcam } from "lucide-react";
 import { useMotionPreference } from "@/hooks/useMotionPreference";
 
 function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string }) {
@@ -37,7 +37,7 @@ function AnimatedNumber({ value, suffix = "" }: { value: number; suffix?: string
   return <>{displayValue}{suffix}</>;
 }
 
-export default function MapMetricsHud({ companies, facilities, modalityCount }: { companies: number; facilities: number; modalityCount: number }) {
+export default function MapMetricsHud({ companies, facilities, deviceCompanies }: { companies: number; facilities: number; deviceCompanies: number }) {
   return (
     <section className="metrics-hud" aria-label="Live network metrics">
       <span className="metrics-hud-status"><i/>Live network</span>
@@ -63,11 +63,11 @@ export default function MapMetricsHud({ companies, facilities, modalityCount }: 
       
       <article className="metric-card metric-capacity">
         <span className="metric-icon">
-          <Activity size={20} strokeWidth={1.5} />
+          <Webcam size={20} strokeWidth={1.5} />
         </span>
         <div>
-          <small>Data types</small>
-          <strong aria-label={`${modalityCount} data types`}><AnimatedNumber value={modalityCount} /></strong>
+          <small>Device companies</small>
+          <strong aria-label={`${deviceCompanies} device companies`}><AnimatedNumber value={deviceCompanies} /></strong>
         </div>
       </article>
     </section>

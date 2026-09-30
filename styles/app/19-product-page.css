@@ -1,0 +1,66 @@
+/* ─────────────────────────────────────────────────────────────
+   Device product page: gallery and spec sheet (reusing the
+   product-detail blocks), the store line, the enquiry chat, and
+   the owner's preview panel.
+   ───────────────────────────────────────────────────────────── */
+
+.product-page-main { grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:32px; }
+.product-page-main .product-detail-photo { border-radius:18px; }
+.product-page-title { margin:0; color:var(--supplier-ink); font-size:clamp(24px,3vw,32px); line-height:1.15; letter-spacing:-.6px; }
+.product-page-store { display:flex; align-items:center; gap:10px; margin:0; padding:10px 12px; border:1px solid var(--supplier-line); border-radius:14px; color:#4f6f66; background:#fbfdfc; font-size:13px; }
+.product-page-store > span:nth-child(2) { display:grid; min-width:0; flex:1; }
+.product-page-store strong { color:var(--supplier-ink); }
+.product-page-store small { color:#7a8e88; font-size:12px; }
+a.product-page-store:hover { border-color:var(--device-line); }
+a.product-page-store:hover strong { color:var(--supplier-green); }
+.store-page .product-card h3 a:hover { color:var(--supplier-green); }
+.product-card-footer a.primary-button,.product-card-footer a.secondary-button { display:inline-flex; align-items:center; }
+
+/* Enquiry chat ------------------------------------------------- */
+.product-chat { display:grid; gap:14px; padding:20px; border:1px solid var(--device-line); border-radius:18px; background:#fbfeff; scroll-margin-top:24px; }
+.product-chat-head { display:flex; align-items:flex-start; gap:12px; }
+.product-chat-head > span { display:grid; width:36px; height:36px; flex:none; place-items:center; border-radius:10px; color:#fff; background:var(--device); }
+.product-chat-head h2 { margin:0; color:var(--supplier-ink); font-size:17px; letter-spacing:-.2px; }
+.product-chat-head p { margin:3px 0 0; color:#6a8079; font-size:13px; line-height:1.5; }
+.product-chat-thread { display:grid; gap:10px; max-height:380px; overflow:auto; }
+.product-chat-thread article { justify-self:start; max-width:min(560px,85%); padding:10px 13px; border:1px solid #e3ece9; border-radius:14px 14px 14px 4px; background:#fff; }
+.product-chat-thread article.is-mine { justify-self:end; border-color:var(--device-line); border-radius:14px 14px 4px 14px; background:var(--device-tint); }
+.product-chat-thread strong { color:var(--supplier-ink); font-size:12px; }
+.product-chat-thread p { margin:4px 0 0; color:#34524a; font-size:13.5px; line-height:1.55; white-space:pre-line; overflow-wrap:anywhere; }
+.product-chat-thread time { display:block; margin-top:5px; color:#8a9c96; font-size:11px; }
+.product-chat-empty { margin:0; color:#6a8079; font-size:13px; }
+.product-chat-compose { display:grid; grid-template-columns:1fr auto; align-items:end; gap:10px; }
+.product-chat-compose textarea { width:100%; padding:11px 12px; border:1px solid #d4e2dd; border-radius:12px; color:#27463e; background:#fff; font:inherit; font-size:13.5px; resize:vertical; }
+.product-chat-compose textarea:focus { border-color:var(--device); outline:0; }
+.product-chat-compose .primary-button { gap:8px; min-height:44px; }
+
+/* Owner preview ------------------------------------------------ */
+.product-page .store-owner-note svg { flex:none; }
+.product-owner-panel { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; border:1px solid var(--supplier-line); border-radius:16px; background:#fbfdfc; }
+.product-owner-panel p { display:flex; align-items:center; gap:8px; margin:0; color:#4f6f66; font-size:13.5px; }
+.product-owner-panel p svg { flex:none; color:var(--supplier-green); }
+.product-owner-panel > div { display:flex; flex-wrap:wrap; gap:8px; }
+.product-owner-panel .primary-button { gap:6px; }
+
+/* Enquiry inbox: the chat reply is a button beside the status actions. */
+.request-actions button.request-reply { padding:6px 10px; border-color:#cfe6de; color:var(--supplier-green); background:#fff; font-size:12px; font-weight:700; }
+
+@media(max-width:900px) { .product-page-main { grid-template-columns:1fr; gap:22px; } }
+@media(max-width:760px) {
+  .product-chat { padding:16px; }
+  .product-chat-compose { grid-template-columns:1fr; }
+  .product-chat-compose .primary-button { justify-self:stretch; justify-content:center; }
+}
+
+/* Enquiry form: shown until the first enquiry is sent, then the chat takes over. */
+.product-enquiry-form { display:grid; gap:12px; }
+.product-enquiry-form label { display:grid; gap:6px; }
+.product-enquiry-form label > span { color:#56706a; font-size:12px; font-weight:700; }
+.product-enquiry-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.product-enquiry-form input,.product-enquiry-form select,.product-enquiry-form textarea { width:100%; min-height:42px; padding:10px 12px; border:1px solid #d4e2dd; border-radius:10px; color:#27463e; background:#fff; font:inherit; font-size:13.5px; }
+.product-enquiry-form textarea { resize:vertical; }
+.product-enquiry-form :is(input,select,textarea):focus { border-color:var(--device); outline:0; }
+.product-enquiry-submit { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
+.product-enquiry-submit small { color:#7a8e88; font-size:12px; }
+.product-enquiry-submit .primary-button { gap:8px; min-height:42px; }
+@media(max-width:560px) { .product-enquiry-fields { grid-template-columns:1fr; } .product-enquiry-submit .primary-button { width:100%; } }

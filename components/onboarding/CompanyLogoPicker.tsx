@@ -53,7 +53,7 @@ export default function CompanyLogoPicker({ logo, onChange, onError, error, labe
     <div className={`company-logo-preview ${photo ? "is-photo" : ""}`}>{logo ? <Image src={logo.url} alt={`${logo.name} ${noun} preview`} fill unoptimized sizes="96px"/> : <Building2 aria-hidden/>}</div>
     <div className="company-logo-copy">
       <strong>{label} {required ? <em className="is-required">Required</em> : <em>Optional</em>}</strong>
-      <small>{logo ? `${logo.name} · ${sizeLabel(logo.size)}` : `Square JPG, PNG, or WebP · 5 MB maximum. ${hint}`}</small>
+      <small>{logo ? (logo.size ? `${logo.name} · ${sizeLabel(logo.size)}` : logo.name) : `Square JPG, PNG, or WebP · 5 MB maximum. ${hint}`}</small>
       <div className="company-logo-actions">
         <label className="company-logo-upload">{logo ? <RefreshCw size={15}/> : <ImageUp size={15}/>}{logo ? `Replace ${noun}` : `Upload ${noun}`}<input type="file" accept="image/jpeg,image/png,image/webp" aria-invalid={Boolean(error)} aria-describedby={error ? "logo-error" : undefined} onChange={(event) => { selectFile(event.target.files); event.currentTarget.value = ""; }}/></label>
         {logo && <button type="button" className="company-logo-remove" onClick={() => setConfirming(true)}><Trash2 size={15}/>Remove</button>}

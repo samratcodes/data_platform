@@ -14,16 +14,22 @@ import { assetUrl, formatBytes, formatDate, formatDateTime, formatRelative } fro
 import type { ApplicationDetail, AuditEntry } from "@/types/admin";
 import { isPublicAsset } from "@/lib/image";
 import { factoryCategoryLabel, formatCount, parseFacilityDetails, recordingConsentOptions } from "@/lib/facility";
+import { companyFocusLabel } from "@/lib/company-focus";
 
 type Decision = "approved" | "rejected";
 type Photo = { src: string; label: string; isCover?: boolean };
 
-const focusLabels: Record<string, string> = { collection: "Data collection", platform: "Data platform", embodied: "Embodied AI" };
 const actionLabels: Record<string, string> = { "application.approved": "Approved", "application.rejected": "Rejected", "application.pending": "Moved to pending", "application.edited": "Edited by admin" };
 
 /** Reasons the application cannot be approved yet, mirrored from the server-side checks. */
-function approvalBlockers(application: ApplicationDetail) {
+function approvalBlockers(application: ApplicationDetail, level: string) {
   const blockers: string[] = [];
+  // An incomplete listing only needs a place on the map (and, for a facility, an approved company).
+  if (level === "incomplete") {
+    if (!application.city || !application.country || application.longitude === null || application.latitude === null) blockers.push("Add a city, country, and map pin first.");
+    if (application.application_kind === "facility" && application.company?.status !== "approved") blockers.push("The supplier's data company must be approved first.");
+    return blockers;
+  }
   if (!application.maps_url || !application.city || !application.country || application.longitude === null || application.latitude === null) blockers.push("The submission is missing its Google Maps location.");
   if (application.application_kind === "facility") {
     if (application.company?.status !== "approved") blockers.push("The supplier's data company must be approved first.");
@@ -87,7 +93,7 @@ export default function ApplicationReview({ id }: { id: string }) {
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [history, setHistory] = useState<AuditEntry[]>([]);
   const [loadError, setLoadError] = useState("");
-  const [level, setLevel] = useState<"online" | "physical">("online");
+  const [level, setLevel] = useState<"online" | "physical" | "incomplete">("online");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<Decision | "">("");
   const [error, setError] = useState("");
@@ -100,7 +106,7 @@ export default function ApplicationReview({ id }: { id: string }) {
     setApplication(data.application);
     setHistory(data.history);
     setNotes(data.application.admin_notes ?? "");
-    setLevel(data.application.verification_level === "physical" ? "physical" : "online");
+    setLevel(data.application.verification_level === "physical" || data.application.verification_level === "incomplete" ? data.application.verification_level : "online");
   }), [id]);
 
   useEffect(() => {
@@ -112,8 +118,8 @@ export default function ApplicationReview({ id }: { id: string }) {
 
   const isCompany = application.application_kind === "company";
   const factory = isCompany ? null : parseFacilityDetails(application.facility_details);
-  const queueHref = isCompany ? "/admin/companies" : "/admin/facilities";
-  const blockers = approvalBlockers(application);
+  const queueHref = !isCompany ? "/admin/facilities" : application.company_focus === "devices" ? "/admin/device-companies" : "/admin/companies";
+  const blockers = approvalBlockers(application, level);
   const logoKey = application.company_logo?.key ?? null;
   // Approved images are public, so they load resized; pending ones need the admin's session.
   const imageUrl = (key: string) => application.status === "approved" ? `/api/company-assets?public=1&key=${encodeURIComponent(key)}` : assetUrl(key);
@@ -134,16 +140,16 @@ export default function ApplicationReview({ id }: { id: string }) {
       const email = result.emailSent === false
         ? " The notification email to the supplier could not be sent right away."
         : ` The supplier was emailed${notes.trim() ? " with your notes" : ""}.`;
-      setNotice((status === "approved" ? "Application approved. The listing is now live on the map." : "Application rejected.") + email);
+      setNotice((status === "approved" ? level === "incomplete" ? "Published as incomplete. The listing shows in grey on the map until the company completes it." : "Application approved. The listing is now live on the map." : "Application rejected.") + email);
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(""); }
   };
 
   return <section className="admin-page-body review-page">
-    <nav className="breadcrumbs" aria-label="Breadcrumb"><Link href="/admin">Admin</Link><span>/</span><Link href={queueHref}>{isCompany ? "Data companies" : "Facilities"}</Link><span>/</span><span aria-current="page">{application.business_name}</span></nav>
+    <nav className="breadcrumbs" aria-label="Breadcrumb"><Link href="/admin">Admin</Link><span>/</span><Link href={queueHref}>{!isCompany ? "Facilities" : application.company_focus === "devices" ? "Device companies" : "Data companies"}</Link><span>/</span><span aria-current="page">{application.business_name}</span></nav>
 
     <header className="review-header">
-      <ApplicationName name={application.business_name} kind={application.application_kind} logoKey={logoKey} size="lg" detail={isCompany ? "Data company application" : `Facility${application.company ? ` of ${application.company.business_name}` : ""}`}/>
+      <ApplicationName name={application.business_name} kind={application.application_kind} logoKey={logoKey} size="lg" detail={isCompany ? (application.company_focus === "devices" ? "Device company application" : "Data company application") : `Facility${application.company ? ` of ${application.company.business_name}` : ""}`}/>
       <div className="review-header-meta">
         <StatusBadge status={application.status}/>
         {application.status === "approved" && <StatusBadge status={application.verification_level}/>}
@@ -175,7 +181,7 @@ export default function ApplicationReview({ id }: { id: string }) {
         <Section title={isCompany ? "Company profile" : "Facility profile"} icon={<ShieldCheck size={17}/>}>
           <p className="review-description">{application.profile_description || "No description supplied."}</p>
           <dl className="review-fields">
-            {isCompany ? <Field label="Primary focus">{application.company_focus && (focusLabels[application.company_focus] ?? application.company_focus)}</Field>
+            {isCompany ? <Field label="Primary focus">{application.company_focus && companyFocusLabel(application.company_focus)}</Field>
               : <>{factory && <Field label="Facility category">{factoryCategoryLabel(factory)}</Field>}<Field label="Capacity">{application.capacity}</Field><Field label="Facility areas">{application.capture_environments.join(", ")}</Field></>}
             <Field label="Data capabilities">{(application.modalities.length || application.robotics_types.length) && <span className="chip-list">{[...application.modalities, ...application.robotics_types].map((item) => <span key={item} className="chip">{item}</span>)}</span>}</Field>
           </dl>
@@ -248,15 +254,16 @@ export default function ApplicationReview({ id }: { id: string }) {
         {application.reviewed_at && <p className="decision-meta">Last reviewed {formatDateTime(application.reviewed_at)}</p>}
         {blockers.length > 0 && <div className="decision-blockers" role="note"><AlertTriangle size={16}/><div><strong>Cannot approve yet</strong><ul>{blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>{!isCompany && application.company && application.company.status !== "approved" && <Link href={`/admin/applications/${application.company.id}`}>Review the company first</Link>}</div></div>}
         <fieldset className="decision-levels" disabled={Boolean(busy)}>
-          <legend>Verification level for approval</legend>
+          <legend>How to list it</legend>
           <label className={level === "online" ? "selected" : ""}><input type="radio" name="level" value="online" checked={level === "online"} onChange={() => setLevel("online")}/><span><strong>Online verified</strong><small>Identity, documents, and public footprint checked remotely.</small></span></label>
           <label className={level === "physical" ? "selected" : ""}><input type="radio" name="level" value="physical" checked={level === "physical"} onChange={() => setLevel("physical")}/><span><strong>Physically verified</strong><small>The location was visited or verified in person.</small></span></label>
+          <label className={`is-incomplete ${level === "incomplete" ? "selected" : ""}`}><input type="radio" name="level" value="incomplete" checked={level === "incomplete"} onChange={() => setLevel("incomplete")}/><span><strong>Incomplete listing</strong><small>Show only the name, logo, and location as a grey pin, listed last, until the company completes its profile.</small></span></label>
         </fieldset>
         <label className="decision-notes">Notes for the supplier<textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={4000} rows={5} placeholder="Record what you verified, or explain what needs to change. Required when rejecting."/><small>These notes are included in the approval or rejection email to the supplier.</small></label>
         {error && <p className="form-error" role="alert">{error}</p>}
         {notice && <p className="settings-message settings-success" role="status">{notice}</p>}
         <div className="decision-actions">
-          <button type="button" className="button-approve" disabled={Boolean(busy) || blockers.length > 0} onClick={() => void decide("approved")}>{busy === "approved" ? <LoaderCircle className="spin" size={16}/> : <BadgeCheck size={16}/>}{application.status === "approved" ? "Save approval" : "Approve"}</button>
+          <button type="button" className="button-approve" disabled={Boolean(busy) || blockers.length > 0} onClick={() => void decide("approved")}>{busy === "approved" ? <LoaderCircle className="spin" size={16}/> : <BadgeCheck size={16}/>}{level === "incomplete" ? (application.status === "approved" ? "Save as incomplete" : "Publish as incomplete") : application.status === "approved" ? "Save approval" : "Approve"}</button>
           <button type="button" className="button-reject" disabled={Boolean(busy)} onClick={() => void decide("rejected")}>{busy === "rejected" ? <LoaderCircle className="spin" size={16}/> : <XCircle size={16}/>}{application.status === "rejected" ? "Update rejection" : "Reject"}</button>
         </div>
         <p className="decision-meta">Approving publishes the listing on the map. Rejecting hides it. Either way the supplier is emailed the decision and your notes.</p>

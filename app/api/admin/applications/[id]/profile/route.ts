@@ -7,9 +7,9 @@ import { adminRequired, adminUser } from "@/lib/admin/queries";
 import { publishListing, type ListingApplication } from "@/lib/admin/listing";
 import { cleanMultiline, cleanSingleLine, isUuid, readJsonObject, safeHttpsUrl } from "@/lib/security";
 import { facilityCapacity, parseFacilityDetails } from "@/lib/facility";
+import { isCompanyFocus } from "@/lib/company-focus";
 
 const modalities = new Set(["Egocentric video", "Exocentric video", "Speech", "Images"]);
-const companyFocuses = new Set(["collection", "platform", "embodied"]);
 const notFound = () => Response.json({ error: "Application not found." }, { status: 404 });
 const strings = (value: unknown, allowed: ReadonlySet<string>) => Array.isArray(value)
   ? [...new Set(value.filter((item): item is string => typeof item === "string" && allowed.has(item)))]
@@ -68,7 +68,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
       await client.query("ROLLBACK");
       return Response.json({ error: "Choose the facility category and enter a valid workforce: total workers, seated hand-task workers, and movement-task workers." }, { status: 400 });
     }
-    const focus = typeof body.focus === "string" && companyFocuses.has(body.focus) ? body.focus : null;
+    const focus = isCompanyFocus(body.focus) ? body.focus : null;
     // Older facilities may carry free-text areas, so any short label is kept.
     const environments = Array.isArray(body.captureEnvironments) ? [...new Set(body.captureEnvironments.map((item) => cleanSingleLine(item, 120)).filter(Boolean))].slice(0, 20) : [];
 

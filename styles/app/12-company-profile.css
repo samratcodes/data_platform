@@ -187,3 +187,10 @@
 .wizard-other-environments small { margin-left:6px; color:#789087; font-size:11px; font-weight:500; }
 .facility-registration-form .company-evidence-fields > div > .fieldset-note { display:flex; align-items:center; gap:6px; margin-top:10px; }
 .office-image-picker.has-error { border-color:#d98a8f; background:#fdf6f6; }
+
+/* Company profile form inside Profile & settings: the registration form, full width below the account cards. */
+.settings-company { display:grid; gap:16px; margin-top:18px; padding:24px; border:1px solid var(--app-surface-line); border-radius:var(--fm-radius-md); background:#fff; scroll-margin-top:20px; }
+.settings-company > .settings-card-heading { align-items:center; }
+.settings-company > .settings-card-heading .status-badge { margin-left:auto; }
+.settings-company .review-feedback,.settings-company .listing-prefill-note { margin:0; }
+@media(max-width:640px) { .settings-company { padding:16px; } }

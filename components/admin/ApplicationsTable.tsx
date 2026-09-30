@@ -26,7 +26,9 @@ const copy: Record<ApplicationKind, { title: string; description: string; noun: 
   facility: { title: "Facilities", description: "Review each facility's location and photo evidence. A facility can only be approved after its data company.", noun: "facility submissions" },
 };
 
-export default function ApplicationsTable({ kind }: { kind: ApplicationKind }) {
+/** The review queue for one kind of application; `embedded` leaves the page header to the caller. */
+export default function ApplicationsTable({ kind, focus, embedded = false }: { kind: ApplicationKind; focus?: "collection" | "devices"; embedded?: boolean }) {
+  const text = focus === "devices" ? { title: "Device companies", description: "Verify device companies before their store and products go live.", noun: "device company applications" } : copy[kind];
   const router = useRouter();
   const [items, setItems] = useState<ApplicationSummary[] | null>(null);
   const [error, setError] = useState("");
@@ -36,11 +38,11 @@ export default function ApplicationsTable({ kind }: { kind: ApplicationKind }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    api<{ applications: ApplicationSummary[] }>(`/api/admin/applications?kind=${kind}`, { signal: controller.signal })
+    api<{ applications: ApplicationSummary[] }>(`/api/admin/applications?kind=${kind}${focus ? `&focus=${focus}` : ""}`, { signal: controller.signal })
       .then((data) => setItems(data.applications))
       .catch((reason) => { if (!controller.signal.aborted) setError(reason.message); });
     return () => controller.abort();
-  }, [kind]);
+  }, [kind, focus]);
 
   const counts = useMemo(() => {
     const result: Record<Filter, number> = { pending: 0, approved: 0, rejected: 0, all: items?.length ?? 0 };
@@ -58,10 +60,7 @@ export default function ApplicationsTable({ kind }: { kind: ApplicationKind }) {
 
   const reviewHref = (id: string) => `/admin/applications/${id}`;
 
-  return <section className="admin-page-body">
-    <PageHeader eyebrow="VERIFICATION QUEUE" title={copy[kind].title} description={copy[kind].description}/>
-
-    <div className="table-card">
+  const table = <div className="table-card">
       <div className="table-toolbar">
         <div className="segmented" role="tablist" aria-label="Filter by status">
           {filters.map(({ value, label }) => <button key={value} type="button" role="tab" aria-selected={filter === value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{label}<b>{counts[value]}</b></button>)}
@@ -73,8 +72,8 @@ export default function ApplicationsTable({ kind }: { kind: ApplicationKind }) {
       </div>
 
       {error && <p className="form-error table-message" role="alert">{error}</p>}
-      {!items && !error && <p className="table-loading"><LoaderCircle className="spin" size={18}/>Loading {copy[kind].noun}…</p>}
-      {items && !rows.length && <EmptyState icon={<Inbox/>} title={search ? "No matches" : `No ${filter === "all" ? "" : `${filter} `}${copy[kind].noun}`} description={search ? "Try a different name, email, or location." : filter === "pending" ? "Everything has been reviewed. New submissions will appear here." : undefined}/>}
+      {!items && !error && <p className="table-loading"><LoaderCircle className="spin" size={18}/>Loading {text.noun}…</p>}
+      {items && !rows.length && <EmptyState icon={<Inbox/>} title={search ? "No matches" : `No ${filter === "all" ? "" : `${filter} `}${text.noun}`} description={search ? "Try a different name, email, or location." : filter === "pending" ? "Everything has been reviewed. New submissions will appear here." : undefined}/>}
 
       {rows.length > 0 && <div className="table-scroll">
         <table className="data-table">
@@ -98,7 +97,12 @@ export default function ApplicationsTable({ kind }: { kind: ApplicationKind }) {
           </tr>)}</tbody>
         </table>
       </div>}
-      {items && rows.length > 0 && <p className="table-footnote">Showing {rows.length} of {counts.all} {copy[kind].noun}</p>}
-    </div>
+      {items && rows.length > 0 && <p className="table-footnote">Showing {rows.length} of {counts.all} {text.noun}</p>}
+    </div>;
+
+  if (embedded) return table;
+  return <section className="admin-page-body">
+    <PageHeader eyebrow="VERIFICATION QUEUE" title={text.title} description={text.description}/>
+    {table}
   </section>;
 }

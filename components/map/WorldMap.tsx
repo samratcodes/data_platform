@@ -51,15 +51,19 @@ const lightStyle: StyleSpecification = {
 // Keep the globe prominent without crowding the landing-page controls.
 const landingGlobeZoom = 2.45;
 
-type MarkerKind = PublicOperator["type"];
+// Incomplete listings get their own grey marker: no category colour until the company is verified.
+type MarkerKind = PublicOperator["type"] | "Incomplete";
 const markerStyles: Record<MarkerKind, { light: string; deep: string; glyph: string }> = {
+  "Incomplete": { light: "#c3c9ce", deep: "#8c959c", glyph: '<rect width="16" height="18" x="4" y="3" rx="2"/><path d="M9 21v-4h6v4M8 7h.01M12 7h.01M16 7h.01M8 11h.01M12 11h.01M16 11h.01"/>' },
   "Facility": { light: "#34d399", deep: "#047857", glyph: '<path d="M3 21h18V10l-6 4v-4l-6 4V5H5a2 2 0 0 0-2 2Z"/><path d="M8 18h1M13 18h1M18 18h1"/>' },
   "Data Company": { light: "#60a5fa", deep: "#1d4ed8", glyph: '<ellipse cx="12" cy="5" rx="8.5" ry="3"/><path d="M3.5 5v7c0 1.65 3.8 3 8.5 3s8.5-1.35 8.5-3V5M3.5 12v7c0 1.65 3.8 3 8.5 3s8.5-1.35 8.5-3v-7"/>' },
   "Robotics": { light: "#a78bfa", deep: "#6d28d9", glyph: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="3"/><path d="M2 14h2M20 14h2M15.5 13.5v1M8.5 13.5v1"/>' },
+  "Device Supplier": { light: "#3fb2c4", deep: "#0e7a8c", glyph: '<circle cx="12" cy="10" r="8"/><circle cx="12" cy="10" r="3"/><path d="M7 22h10"/><path d="M12 22v-4"/>' },
 };
 const styleFor = (kind: MarkerKind) => markerStyles[kind] ?? markerStyles["Data Company"];
-const pulseColor: ExpressionSpecification = ["match", ["get", "kind"], "Facility", "#10b981", "Robotics", "#8b5cf6", "#3b82f6"];
-const logoIconId = (operator: PublicOperator) => operator.profile?.logo ? `logo:${operator.type}:${operator.profile.logo}` : "";
+const markerKind = (operator: PublicOperator): MarkerKind => operator.verificationLevel === "incomplete" ? "Incomplete" : operator.type;
+const pulseColor: ExpressionSpecification = ["match", ["get", "kind"], "Facility", "#10b981", "Robotics", "#8b5cf6", "Device Supplier", "#3fb2c4", "Incomplete", "#9aa3aa", "#3b82f6"];
+const logoIconId = (operator: PublicOperator) => operator.profile?.logo ? `logo:${markerKind(operator)}:${operator.profile.logo}` : "";
 
 const loadImage = (src: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
   const img = new Image();
@@ -178,6 +182,8 @@ async function drawMarker(kind: MarkerKind, logo?: string, photo = false) {
       const image = await loadImage(badgeSrc(logo));
       // Photos always fill the face; logos follow their own shape.
       const fit = photo ? { ...analyzeLogo(image), cover: true } : analyzeLogo(image);
+      // Incomplete listings show their logo without colour.
+      if (kind === "Incomplete") context.filter = "grayscale(1) opacity(.85)";
       context.fillStyle = fit.background;
       context.fillRect(centerX - face, centerY - face, face * 2, face * 2);
       const box = fit.cover ? face * 2 : face * 1.45;
@@ -186,6 +192,7 @@ async function drawMarker(kind: MarkerKind, logo?: string, photo = false) {
       const drawWidth = fit.cover ? Math.max(box, box * ratio) : Math.min(box, box * ratio);
       const drawHeight = drawWidth / ratio;
       context.drawImage(image, centerX - drawWidth / 2, centerY - drawHeight / 2, drawWidth, drawHeight);
+      context.filter = "none";
       drewLogo = true;
     } catch { /* Fall through to the glyph. */ }
   }
@@ -212,6 +219,22 @@ async function drawMarker(kind: MarkerKind, logo?: string, photo = false) {
   return context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
+/** The round green badge behind a data company's facility count. */
+function drawBadge() {
+  const size = 18;
+  const canvas = document.createElement("canvas");
+  canvas.width = size * MARKER.scale;
+  canvas.height = size * MARKER.scale;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas is unavailable.");
+  context.scale(MARKER.scale, MARKER.scale);
+  context.fillStyle = "#ffffff";
+  context.beginPath(); context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); context.fill();
+  context.fillStyle = "#059669";
+  context.beginPath(); context.arc(size / 2, size / 2, size / 2 - 1.6, 0, Math.PI * 2); context.fill();
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
 /** Registers a branded marker for every operator with a logo, then re-renders the markers. */
 async function addLogoPins(map: GLMap, operators: PublicOperator[]) {
   const pending = new Map<string, PublicOperator>();
@@ -221,7 +244,7 @@ async function addLogoPins(map: GLMap, operators: PublicOperator[]) {
   });
   if (!pending.size) return;
   const results = await Promise.allSettled([...pending].map(async ([id, operator]) => {
-    const image = await drawMarker(operator.type, operator.profile.logo!, Boolean(operator.profile.logoIsPhoto));
+    const image = await drawMarker(markerKind(operator), operator.profile.logo!, Boolean(operator.profile.logoIsPhoto));
     if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: MARKER.scale });
   }));
   // Markers without a loadable logo keep their category glyph.
@@ -234,7 +257,7 @@ async function addLogoPins(map: GLMap, operators: PublicOperator[]) {
 function createLogoDisc(operator: PublicOperator) {
   // A div, so the ".globe-video-details > span" action styles never apply to it.
   const disc = document.createElement("div");
-  disc.className = `provider-logo-disc globe-video-logo-disc ${providerTypeClass(operator.type)}`;
+  disc.className = `provider-logo-disc globe-video-logo-disc ${operator.verificationLevel === "incomplete" ? "is-incomplete" : providerTypeClass(operator.type)}`;
   disc.setAttribute("aria-hidden", "true");
   const fallback = () => {
     disc.classList.add("is-fallback");
@@ -262,7 +285,7 @@ function createGlobeVideoPreview(
   onOpen: () => void
 ) {
   const card = document.createElement("div");
-  card.className = `globe-video-preview ${operator.type === "Facility" ? "is-facility" : operator.type === "Robotics" ? "is-robotics" : "is-company"}`;
+  card.className = `globe-video-preview ${providerTypeClass(operator.type)}`;
   card.setAttribute("role", "button");
   card.setAttribute("tabindex", "0");
   card.setAttribute("aria-hidden", "true");
@@ -273,9 +296,9 @@ function createGlobeVideoPreview(
   const heading = document.createElement("div");
   heading.className = "globe-video-heading";
   const category = document.createElement("span");
-  category.textContent = operator.profile?.facility ? `FACILITY · ${operator.profile.facility.categoryLabel.toUpperCase()}` : operator.type === "Facility" ? "DATA FACILITY" : operator.type === "Robotics" ? "ROBOTICS PROVIDER" : "DATA COMPANY";
+  category.textContent = operator.profile?.facility ? `FACILITY · ${operator.profile.facility.categoryLabel.toUpperCase()}` : operator.type === "Facility" ? "DATA FACILITY" : operator.type === "Robotics" ? "ROBOTICS PROVIDER" : operator.type === "Device Supplier" ? "DEVICE COMPANY" : "DATA COMPANY";
   const verified = document.createElement("span");
-  verified.textContent = "VERIFIED";
+  verified.textContent = operator.verificationLevel === "incomplete" ? "INCOMPLETE" : "VERIFIED";
   heading.append(category, verified);
 
   const media = document.createElement("div");
@@ -322,7 +345,7 @@ function createGlobeVideoPreview(
   }
   const action = document.createElement("span");
   action.setAttribute("aria-hidden", "true");
-  action.textContent = "View profile ↗";
+  action.textContent = operator.type === "Device Supplier" ? "View store ↗" : "View profile ↗";
   details.append(createLogoDisc(operator), copy, action);
 
   const progress = document.createElement("i");
@@ -376,7 +399,8 @@ function countryUniquePreviewOperators(operators: PublicOperator[]) {
 }
 
 function tourOperators(operators: PublicOperator[]) {
-  const uniqueCountries = countryUniquePreviewOperators(operators);
+  // The spotlight tour only visits verified listings.
+  const uniqueCountries = countryUniquePreviewOperators(operators.filter((operator) => operator.verificationLevel !== "incomplete"));
   if (uniqueCountries.length <= 5) return uniqueCountries;
 
   const sampleSize = Math.min(8, uniqueCountries.length);
@@ -411,6 +435,10 @@ function mountGlobePreview(map: GLMap, operator: PublicOperator, onOpen: () => v
   };
 }
 
+/** Where a company's facility-count badge sits: on the top-right of its marker ring, in pixels from the anchor. */
+const BADGE_OFFSET: [number, number] = [MARKER.ring - 3, -(MARKER.tip - MARKER.centerY) - MARKER.ring + 5];
+const BADGE_TEXT_SIZE = 10;
+
 function compactMarkerOffset(index: number, count: number): [number, number] {
   if (count === 1) return [0, 0];
 
@@ -440,10 +468,16 @@ function features(operators: PublicOperator[]): FeatureCollection<Point> {
       seen.set(key, samePlaceIndex + 1);
       const count = totals.get(key) ?? 1;
       const coordinates = operator.coordinates;
+      const offset = compactMarkerOffset(samePlaceIndex, count);
+      const badge: [number, number] = [offset[0] + BADGE_OFFSET[0], offset[1] + BADGE_OFFSET[1]];
 
       return {
         type: "Feature",
-        properties: { slug: operator.slug, name: operator.name, city: operator.city, kind: operator.type, logoIcon: logoIconId(operator), offset: compactMarkerOffset(samePlaceIndex, count) },
+        properties: {
+          slug: operator.slug, name: operator.name, city: operator.city, kind: markerKind(operator), logoIcon: logoIconId(operator), offset,
+          // Data companies show how many facilities open up when they are selected.
+          facilities: operator.facilityCount ?? 0, badgeOffset: badge, badgeTextOffset: [badge[0] / BADGE_TEXT_SIZE, badge[1] / BADGE_TEXT_SIZE],
+        },
         geometry: { type: "Point", coordinates }
       };
     })
@@ -593,6 +627,28 @@ export default function WorldMap(props: Props) {
             }
           });
 
+          // Facility-count badges on data companies; facilities themselves appear once the company is opened.
+          if (!map.hasImage("facility-badge")) map.addImage("facility-badge", drawBadge(), { pixelRatio: MARKER.scale });
+          map.addLayer({
+            id: "facility-badges",
+            type: "symbol",
+            source: "operators",
+            filter: [">", ["get", "facilities"], 0],
+            layout: {
+              "icon-image": "facility-badge",
+              "icon-offset": ["get", "badgeOffset"],
+              "icon-allow-overlap": true,
+              "icon-ignore-placement": true,
+              "text-field": ["to-string", ["get", "facilities"]],
+              "text-font": ["Open Sans Semibold"],
+              "text-size": BADGE_TEXT_SIZE,
+              "text-offset": ["get", "badgeTextOffset"],
+              "text-allow-overlap": true,
+              "text-ignore-placement": true,
+            },
+            paint: { "text-color": "#ffffff" },
+          });
+
           void addLogoPins(map, latest.current.operators);
 
           tourUpdateRef.current = () => {
@@ -696,6 +752,15 @@ export default function WorldMap(props: Props) {
             flyTo: (coordinates, zoom = 4.2, padding) => {
               if (!flattenComplete) flattenMap({ center: coordinates, zoom, ...(padding ? { padding } : {}) });
               else map.flyTo({ center: coordinates, zoom, ...(padding ? { padding } : {}), pitch: 0, duration: latest.current.reducedMotion ? 0 : 1_350, easing: smoothStep, essential: false });
+            },
+            fitTo: (points, padding) => {
+              if (points.length < 2) return;
+              const lngs = points.map((point) => point[0]);
+              const lats = points.map((point) => point[1]);
+              const bounds: [[number, number], [number, number]] = [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]];
+              const fit = () => map.fitBounds(bounds, { padding: { top: 90, bottom: 110, left: 90, right: 90, ...padding }, maxZoom: 9, duration: latest.current.reducedMotion ? 0 : 1_350, essential: false });
+              if (!flattenComplete) { flattenMap(); window.setTimeout(fit, 220); }
+              else fit();
             },
             reset: () => map.flyTo({ center: [12, 25], zoom: landingZoom(), pitch: 0, bearing: 0, duration: latest.current.reducedMotion ? 0 : 1400 }),
             zoom: (amount) => {

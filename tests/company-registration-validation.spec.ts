@@ -37,6 +37,9 @@ test("company registration shows errors beside fields and fits every wizard stag
   await expect(page.locator(".office-image-picker .wizard-field-error")).toHaveCount(0);
   await page.locator(".official-document-picker input[type=file]").setInputFiles({ name: "certificate.png", mimeType: "image/png", buffer: readFileSync("public/brand-logo.png") });
   await page.getByRole("button", { name: "Done" }).click();
+  // The registration document type is pre-filled; clearing it must be flagged.
+  await expect(page.locator(".official-document-details input")).toHaveValue("Company registration document");
+  await page.locator(".official-document-details input").fill("");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator(".official-document-details .wizard-field-error")).toContainText("document type");
   await expect(page.locator(".official-document-details input")).toHaveAttribute("aria-invalid", "true");
@@ -49,18 +52,18 @@ test("company registration shows errors beside fields and fits every wizard stag
   await expect(page.locator(".wizard-section-error")).toContainText("data capability");
   await page.getByRole("button", { name: /Egocentric video/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("heading", { name: "Where is your company located?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Where is your company registered?" })).toBeVisible();
   await assertFits(page);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator(".wizard-input-card").filter({ hasText: "Company website" }).locator(".wizard-field-error")).toContainText("website URL");
-  await expect(page.locator(".wizard-input-card").filter({ hasText: "Physical address" }).locator(".wizard-field-error")).toContainText("physical address");
+  await expect(page.locator(".wizard-input-card").filter({ hasText: "Legal address" }).locator(".wizard-field-error")).toContainText("legal address");
   await expect(page.locator(".wizard-location-picker .wizard-section-error")).toContainText("pin on the map");
   await expect(page.locator(".facility-picker-map-warning")).toContainText("Search and pin placement still work");
   await page.getByRole("button", { name: "Retry street map" }).click();
   await expect(page.locator(".facility-picker-map-warning")).toBeVisible();
 
   await page.getByPlaceholder("https://company.com").fill("https://northstar.example");
-  await page.getByPlaceholder("Street address").fill("1 Data Street");
+  await page.getByPlaceholder("Legal address on your registration document").fill("1 Data Street");
   await page.getByPlaceholder("Kathmandu").fill("Kathmandu");
   await page.getByPlaceholder("Nepal").fill("Nepal");
   await expect(page.locator(".facility-picker-map canvas")).toBeVisible();
@@ -71,7 +74,7 @@ test("company registration shows errors beside fields and fits every wizard stag
   await assertFits(page);
 
   await page.getByRole("button", { name: "Submit application" }).click();
-  await expect(page.locator(".wizard-input-card").filter({ hasText: "Business email" }).locator(".wizard-field-error")).toContainText("email address");
+  await expect(page.locator(".wizard-input-card").filter({ hasText: "Company email" }).locator(".wizard-field-error")).toContainText("email address");
   await expect(page.locator(".wizard-input-card").filter({ hasText: /^Password/ }).locator(".wizard-field-error")).toContainText("12 and 128 characters");
   await page.screenshot({ path: "test-results/company-account-errors-mobile.png" });
   for (const width of [390, 768, 1024]) {

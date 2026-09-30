@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, Building2, CheckCircle2, Factory, History, Inbox, LoaderCircle, MapPinned, Sheet } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Building2, Camera, CheckCircle2, Factory, History, Inbox, LoaderCircle, MapPinned, Sheet, Webcam } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EmptyState from "@/components/ui/EmptyState";
@@ -22,14 +22,16 @@ export default function AdminOverview({ name }: { name: string }) {
 
   const activeLeads = data ? data.leads.new + data.leads.contacted + data.leads.qualified : 0;
   const stats = data ? [
-    { href: "/admin/companies", label: "Companies awaiting review", value: data.applications.company.pending, detail: `${data.applications.company.approved} approved · ${data.applications.company.rejected} rejected`, icon: Building2 },
+    { href: "/admin/companies", label: "Data companies awaiting review", value: data.applications.company.pending, detail: `${data.applications.company.approved} approved · ${data.applications.company.rejected} rejected`, icon: Building2 },
+    { href: "/admin/device-companies", label: "Device companies awaiting review", value: data.applications.device.pending, detail: `${data.applications.device.approved} approved · ${data.applications.device.rejected} rejected`, icon: Webcam },
     { href: "/admin/facilities", label: "Facilities awaiting review", value: data.applications.facility.pending, detail: `${data.applications.facility.approved} approved · ${data.applications.facility.rejected} rejected`, icon: Factory },
     { href: "/admin/leads", label: "Active concierge leads", value: activeLeads, detail: `${data.leads.new} new · ${data.leads.closed} closed`, icon: BriefcaseBusiness },
-    { href: "/map", label: "Live listings on the map", value: data.liveListings, detail: "Approved companies and facilities", icon: MapPinned },
+    { href: "/map", label: "Live listings on the map", value: data.liveListings, detail: "Approved companies, stores, and facilities", icon: MapPinned },
+    { href: "/admin/device-companies?view=devices", label: "Devices in live stores", value: data.devices.products, detail: `${data.devices.stores} device ${data.devices.stores === 1 ? "store" : "stores"} · ${data.devices.enquiries} enquiries`, icon: Camera },
   ] : [];
 
   return <section className="admin-page-body">
-    <PageHeader eyebrow="ADMIN CONSOLE" title={`Welcome back, ${name.split(" ")[0]}`} description="Review supplier applications, follow up on concierge leads, and keep an eye on platform activity."/>
+    <PageHeader eyebrow="ADMIN CONSOLE" title={`Welcome back, ${name.split(" ")[0]}`} description="Review data companies, device companies, and facilities, follow up on concierge leads, and keep an eye on platform activity."/>
     {error && <p className="form-error" role="alert">{error}</p>}
     {!data && !error && <p className="table-loading"><LoaderCircle className="spin" size={18}/>Loading overview…</p>}
     {data && <>
@@ -42,10 +44,10 @@ export default function AdminOverview({ name }: { name: string }) {
 
       <div className="overview-grid">
         <div className="table-card">
-          <div className="card-heading"><h2><Inbox size={17}/>Awaiting review</h2><Link className="text-link" href="/admin/companies">View queues<ArrowRight size={14}/></Link></div>
+          <div className="card-heading"><h2><Inbox size={17}/>Awaiting review</h2></div>
           {data.pending.length ? <ul className="queue-list">{data.pending.map((item) => <li key={item.id}>
             <Link href={`/admin/applications/${item.id}`}>
-              <ApplicationName name={item.business_name} kind={item.application_kind} logoKey={item.logo_key} detail={`${item.application_kind === "company" ? "Data company" : "Facility"} · ${item.applicant_name}`}/>
+              <ApplicationName name={item.business_name} kind={item.application_kind} logoKey={item.logo_key} detail={`${item.application_kind === "facility" ? "Facility" : item.company_focus === "devices" ? "Device company" : "Data company"} · ${item.applicant_name}`}/>
               <small>{formatRelative(item.submitted_at)}</small>
               <span className="table-action">Review<ArrowRight size={14}/></span>
             </Link>

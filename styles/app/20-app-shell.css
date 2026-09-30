@@ -1,0 +1,126 @@
+/* ─────────────────────────────────────────────────────────────
+   Signed-in app shell: a plain light canvas with the page's main
+   content on one white panel, and a quieter side column.
+   Deliberately flat: no gradients, glows, or accent bars.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  --app-canvas:#f3f5f7;
+  --app-surface-line:#e2e8ee;
+  --app-muted-surface:#f8fafb;
+}
+
+.admin-page,
+.buyer-workspace-page,
+.settings-page,
+.store-page { background:var(--app-canvas) !important; }
+
+/* The main content sits on one white panel. */
+.admin-shell.supplier-shell,
+.admin-console,
+.buyer-workspace-shell,
+.settings-page .settings-shell,
+.store-shell {
+  margin-block:22px 40px !important;
+  padding:30px 34px 38px !important;
+  border:1px solid var(--app-surface-line);
+  border-radius:20px;
+  background:#fff;
+  box-shadow:0 2px 10px rgb(20 40 60 / 4%);
+}
+
+/* The page header reads as the panel's title bar. */
+.admin-shell.supplier-shell > .page-header,
+.buyer-workspace-shell > .page-header,
+.settings-shell > .page-header,
+.store-shell > .page-header,
+.admin-console .page-header {
+  margin-bottom:24px;
+  padding-bottom:22px;
+  border-bottom:1px solid #edf1f4;
+}
+
+/* The side column is quieter, so the white main column stands out. */
+.supplier-aside .side-card,
+.supplier-aside .side-card.is-accent { border-color:var(--app-surface-line); background:var(--app-muted-surface); box-shadow:none; }
+.supplier-aside .side-actions a { border-color:var(--app-surface-line); }
+.supplier-aside .side-actions a:hover { background:#fff; }
+
+/* Cards inside the panel keep a crisp, quiet edge. */
+.factory-card,.product-card,.supplier-requests .request-list article,.inbox,.buyer-workspace-card,.settings-card,.table-card { border-color:var(--app-surface-line) !important; box-shadow:none !important; }
+
+/* Navigation rails stay flat: plain white, no tint, accent line, or gradient avatar. */
+.public-navigation-rail::before,.buyer-navigation-rail::before { background:#fff; }
+.public-navigation-rail::after,.buyer-navigation-rail::after { display:none; }
+.buyer-rail-avatar > b { background:#1f7a64; box-shadow:none; }
+
+/* Buttons and card covers are solid colours too. */
+.primary-button,
+.company-wizard-full .wizard-next,
+.company-profile-editor .wizard-next,
+.decision-panel .button-approve { color:#fff !important; background:#1f8f73 !important; box-shadow:none !important; filter:none !important; }
+.primary-button:hover,
+.company-wizard-full .wizard-next:hover:not(:disabled),
+.company-profile-editor .wizard-next:hover:not(:disabled),
+.decision-panel .button-approve:hover:not(:disabled) { background:#18765f !important; }
+.factory-card-cover { background:#f1f5f4; }
+
+@media(max-width:760px) {
+  .admin-shell.supplier-shell,
+  .admin-console,
+  .buyer-workspace-shell,
+  .settings-page .settings-shell,
+  .store-shell { width:calc(100% - 16px) !important; margin-block:10px 28px !important; padding:20px 16px 26px !important; border-radius:16px; }
+}
+
+/* Company overview: the compact profile at the top of dashboards and store pages. */
+.company-overview { display:grid; gap:16px; margin-bottom:24px; padding-bottom:22px; border-bottom:1px solid #edf1f4; }
+.company-overview-head { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
+.company-overview-logo { position:relative; display:grid; flex:none; width:64px; height:64px; place-items:center; overflow:hidden; border:1px solid var(--app-surface-line); border-radius:16px; color:#1f8f73; background:#f6f8f9; }
+.company-overview-logo img { object-fit:contain; padding:6px; }
+.company-overview-copy { display:grid; min-width:0; flex:1; gap:4px; }
+.company-overview-kind { display:inline-flex; align-items:center; gap:6px; color:#1f8f73; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
+.company-overview-copy h1 { margin:0; color:var(--fm-ink); font-size:28px; font-weight:750; line-height:1.15; letter-spacing:-.6px; }
+.company-overview-copy p { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:0; color:#6b7f79; font-size:13px; }
+.company-overview-copy p > svg { margin-right:-6px; }
+.company-overview-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.company-overview-actions .primary-button,.company-overview-actions .secondary-button { min-height:38px; gap:7px; padding:8px 14px; font-size:13px; }
+.company-overview-actions .secondary-button.is-saved { border-color:#b9ddd1; color:#1f8f73; }
+.company-overview-note { margin:0; padding:10px 12px; border-radius:10px; color:#56706a; background:#f6f8f9; font-size:13px; }
+.company-overview-steps { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none; }
+.company-overview-steps li { display:inline-flex; align-items:center; gap:7px; padding:6px 12px 6px 6px; border:1px solid var(--app-surface-line); border-radius:99px; color:#7a8c87; font-size:12.5px; font-weight:650; }
+.company-overview-steps li > span { display:grid; width:20px; height:20px; place-items:center; border-radius:50%; color:#7a8c87; background:#eef2f1; font-size:11px; font-weight:800; }
+.company-overview-steps li.is-done { color:#1f5e4f; }
+.company-overview-steps li.is-done > span { color:#fff; background:#1f8f73; }
+.company-overview-steps li.is-current { border-color:#1f8f73; color:#1f5e4f; }
+
+/* Requests or enquiries beside conversations. */
+.dashboard-split { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); align-items:start; gap:20px; }
+.dashboard-split > * { margin:0 !important; }
+
+/* Store profile on the public store page. */
+.store-page .store-shell { gap:22px; padding-top:22px !important; }
+.store-profile { margin-bottom:0; }
+.store-profile .company-overview-disc { flex:none; }
+.store-profile .company-overview-kind { color:#0e7a8c; }
+.store-verified { display:inline-flex; align-items:center; gap:4px; color:#1f8f73; font-weight:650; }
+.store-profile-description { max-width:760px; margin:0; color:#4f6560; font-size:14px; line-height:1.65; white-space:pre-line; }
+.store-profile-meta { display:flex; flex-wrap:wrap; gap:6px; }
+.store-tag { padding:4px 10px; border-radius:99px; color:#0e6070; background:#eaf7f9; font-size:12px; font-weight:650; }
+.store-link { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border:1px solid var(--app-surface-line); border-radius:99px; color:#4f6560; font-size:12px; font-weight:650; }
+.store-link:hover { color:#1f8f73; }
+.store-page .supplier-metrics { margin:0; }
+.store-page .store-section { margin:0; }
+.store-page .supplier-heading { margin-top:0; }
+.store-owner-note { border-color:var(--app-surface-line) !important; color:#56706a !important; background:#f6f8f9 !important; }
+
+@media(max-width:900px) { .dashboard-split { grid-template-columns:1fr; } }
+@media(max-width:760px) {
+  .company-overview-copy h1 { font-size:23px; }
+  .company-overview-actions { width:100%; }
+}
+
+/* Titles inside the store and catalogue read as headings, not body copy. */
+.product-card h3 { font-weight:750; }
+.store-section-head h2,.store-about .store-section-head h2 { font-weight:750; }
+.store-hero-copy h1 { font-weight:800; }

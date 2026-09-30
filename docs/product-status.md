@@ -1,6 +1,6 @@
 # map.filemarket - Product Status
 
-Last updated: 9 September 2026
+Last updated: 30 September 2026
 
 ## Product status
 
@@ -10,9 +10,10 @@ The complete map.filemarket marketplace MVP is implemented: public discovery, se
 
 | Page | One-line description |
 | --- | --- |
-| `/` | Public 3D globe and 2D map for discovering verified data facilities, companies, and robotics providers. |
+| `/` | Public 3D globe and 2D map for discovering verified data companies, device stores, and robotics providers; facilities are revealed per company after login. |
 | `/map` | Buyer-first sourcing map with search, filters, samples, saved providers, requests, chat, and provider details. |
 | `/signup` | Creates a secure buyer or supplier account with role selection and password validation. |
+| `/signup/data-company` | "Register company": the company wizard, with a primary focus of either data collection or devices for data collection. |
 | `/login` | Signs buyers, suppliers, and administrators into their correct workspace. |
 | `/verify-email` | Shows email-verification status and securely resends a fresh verification link. |
 | `/verify-email/confirm` | Validates the single-use email token and redirects the user to the correct workspace. |
@@ -20,7 +21,11 @@ The complete map.filemarket marketplace MVP is implemented: public discovery, se
 | `/reset-password` | Validates the reset token, changes the password, and revokes older sessions. |
 | `/dashboard` | Redirects an authenticated user to the correct role-based workspace. |
 | `/onboarding` | Lets suppliers submit company, facility, map location, capability, and verification evidence. |
-| `/supplier` | Gives suppliers listing analytics, editable profiles, buyer requests, and conversations. |
+| `/supplier` | Data-collection companies get facilities, analytics, buyer requests, and conversations; device companies get their store: products, store visits, and product enquiries. |
+| `/supplier/products` | Device companies manage their products: publish or hide, edit, delete, and filter. |
+| `/supplier/products/new` | Adds a product with device type, uses, data outputs, spec sheet, price, availability, photos, and a live card preview. |
+| `/supplier/products/[id]/edit` | Edits a product and its photos, including the cover photo. |
+| `/devices` | Signed-in device marketplace: every published device across verified stores, with search, filters, spec sheets, and enquiries. |
 | `/settings` | Lets users update their name, rotate their password, and sign out every device. |
 | `/admin` | Admin console overview: review queue counts, applications awaiting review, recent activity, and Google Sheets sync status. |
 | `/admin/companies` | Searchable, filterable table of data company applications. |
@@ -28,7 +33,7 @@ The complete map.filemarket marketplace MVP is implemented: public discovery, se
 | `/admin/applications/[id]` | Full review page for one application: applicant, profile, location, logo and images, documents, related records, history, and the approve/reject decision. |
 | `/admin/leads` | Table of buyer concierge briefs with inline status updates and a detail view. |
 | `/admin/activity` | Audit trail of every admin review decision and lead update. |
-| `/operators/[slug]` | Opens a direct authenticated profile for a specific verified provider. |
+| `/operators/[slug]` | Opens a direct authenticated profile for a verified provider; a device company's profile is its storefront, and a data company's profile lists its facilities. |
 | `/blog` | Presents concise map.filemarket sourcing and marketplace guidance. |
 | `not-found` | Provides a branded recovery page when a route or provider does not exist. |
 | `error` | Provides a safe retry screen when a page fails unexpectedly. |
@@ -38,6 +43,8 @@ The complete map.filemarket marketplace MVP is implemented: public discovery, se
 - The public experience uses one sample per country, preloads the next sample, and smoothly transitions between 3D and 2D.
 - Buyers can filter the database catalogue, inspect profiles, save providers, request access, download demos, chat, and hire the map.filemarket team.
 - Suppliers can place facilities on the map, submit evidence, track verification, edit approved profiles, and manage buyer requests.
+- Companies register with one of two focuses. Data-collection companies run facilities; device companies run a store of products that buyers and data companies can browse and enquire about. Products go public once the company is approved and need no separate review.
+- Facilities are never sent to signed-out visitors. Signed-in viewers see a facility-count badge on each data company, and opening the company reveals its facilities on the map.
 - Administrators can approve or reject suppliers, assign verification levels, manage concierge leads, and review append-only audit records.
 - PostgreSQL is the source of truth for accounts, sessions, providers, applications, requests, messages, leads, security tokens, and background jobs.
 - Authentication includes scrypt password hashing, secure cookies, email verification, password reset, rate limits, origin checks, input limits, and role authorization.

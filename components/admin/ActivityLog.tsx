@@ -21,14 +21,15 @@ const scopes: Array<{ value: Scope; label: string }> = [
 /** A short sentence describing an audit entry, e.g. "approved Acme Data". */
 export function describeAction(entry: AuditEntry) {
   const [, verb = entry.action] = entry.action.split(".");
-  const target = entry.target_label ?? "a deleted record";
+  const target = entry.target_label ?? entry.metadata.name ?? "a deleted record";
   if (entry.target_type === "concierge_request") return `marked ${target}'s brief as ${verb}`;
+  if (entry.target_type === "provider") return verb === "created" ? `added ${target} as an incomplete listing` : verb === "removed" ? entry.metadata.name ? `removed the incomplete listing ${entry.metadata.name}` : "removed an incomplete listing" : `updated ${target}`;
   if (verb === "approved") return `approved ${target}${entry.metadata.verificationLevel ? ` (${entry.metadata.verificationLevel})` : ""}`;
   if (verb === "rejected") return `rejected ${target}`;
   return `set ${target} to ${verb}`;
 }
 
-const targetHref = (entry: AuditEntry) => entry.target_type === "supplier_application" ? `/admin/applications/${entry.target_id}` : "/admin/leads";
+const targetHref = (entry: AuditEntry) => entry.target_type === "supplier_application" ? `/admin/applications/${entry.target_id}` : entry.target_type === "provider" ? "/admin/companies?view=incomplete" : "/admin/leads";
 
 export default function ActivityLog() {
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
@@ -65,7 +66,7 @@ export default function ActivityLog() {
             <td data-label="When"><span className="cell-stack"><strong>{formatRelative(entry.created_at)}</strong><small>{formatDateTime(entry.created_at)}</small></span></td>
             <td data-label="Admin">{entry.admin_name}</td>
             <td data-label="Action"><StatusBadge status={entry.action.split(".")[1] ?? entry.action}/></td>
-            <td data-label="Record"><span className="cell-stack"><Link className="table-primary-link" href={targetHref(entry)}>{entry.target_label ?? "Deleted record"}</Link><small>{entry.target_type === "concierge_request" ? "Concierge lead" : entry.metadata.applicationKind === "facility" ? "Facility" : "Data company"}</small></span></td>
+            <td data-label="Record"><span className="cell-stack"><Link className="table-primary-link" href={targetHref(entry)}>{entry.target_label ?? "Deleted record"}</Link><small>{entry.target_type === "concierge_request" ? "Concierge lead" : entry.target_type === "provider" ? "Incomplete listing" : entry.metadata.applicationKind === "facility" ? "Facility" : "Data company"}</small></span></td>
             <td data-label="Notes" className="cell-notes">{entry.metadata.notes || <span className="cell-muted">—</span>}</td>
           </tr>)}</tbody>
         </table>

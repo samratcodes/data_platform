@@ -41,6 +41,7 @@ test("company evidence is reviewable, editable, limited, and mobile-safe", async
   await expect(page.locator(".official-document-gallery article")).toHaveCount(5);
   await expect(page.locator(".official-document-picker input[type=file]")).toBeDisabled();
   await page.locator(".official-document-gallery article").last().getByRole("button", { name: /Delete/ }).click();
+  await page.getByRole("dialog", { name: "Delete document?" }).getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.locator(".official-document-gallery article")).toHaveCount(4);
   await expect(page.locator(".official-document-picker input[type=file]")).toBeEnabled();
 
